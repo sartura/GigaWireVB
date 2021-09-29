@@ -69,6 +69,7 @@
 #define VB_ENGINE_LAST_LOW_BAND_28MHZ_NUM_CARRIER_IDX    (504)
 #define VB_ENGINE_LAST_LOW_BAND_50MHZ_NUM_CARRIER_IDX    (952)
 #define VB_ENGINE_MAX_FILE_NAME_SIZE                     (50)
+#define VB_ENGINE_THREAD_TIMEOUT                         (0.1)
 
 #ifndef ENGINE_DISABLE_METRICS
 #  define VB_ENGINE_METRICS_ENABLED                      (1)
@@ -270,7 +271,7 @@ typedef enum {
   VB_ENGINE_ERROR_NO_MEMORY = -36,
   VB_ENGINE_ERROR_NO_AVAILABLE_SEED = -37,
   VB_ENGINE_ERROR_NO_AVAILABLE_DID = -38,
-
+  VB_ENGINE_ERROR_FULL_QUEUE = -39,
 } t_VB_engineErrorCode;
 
 typedef enum

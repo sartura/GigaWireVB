@@ -84,7 +84,7 @@
  ************************************************************************
  */
 
-#define VB_ENGINE_MAIN_MAX_QUEUE_MESSAGES  (5)
+#define VB_ENGINE_MAIN_MAX_QUEUE_MESSAGES  (60000)
 #define VB_ENGINE_MAIN_MSG_SIZE            (sizeof(t_VBMainMsg))
 #define VB_ENGINE_MAIN_QUEUE_NAME          "/VbEngineMainQ"
 #define VB_ENGINE_LOG_QUEUE_NAME           "/VbEngineLogQ"

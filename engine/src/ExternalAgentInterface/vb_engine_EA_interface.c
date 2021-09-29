@@ -271,7 +271,9 @@ static t_vbEAError VbEngineEAConnectCb(t_vbEADesc *desc, struct sockaddr_in6 dri
       {
         this_driver = (t_VBDriver *)desc->args;
 
-        engine_err = VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
+        do {
+          engine_err = VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
+        } while(engine_err == VB_ENGINE_ERROR_FULL_QUEUE);
       }
       else
       {
@@ -305,12 +307,16 @@ static t_vbEAError VbEngineEAConnectCb(t_vbEADesc *desc, struct sockaddr_in6 dri
 static void VbEngineEADisconnectCb(t_vbEADesc *desc)
 {
   t_VBDriver *this_driver;
+  t_VB_engineErrorCode engine_err = VB_ENGINE_ERROR_NONE;
 
   if((desc != NULL) && (desc->args != NULL))
   {
     this_driver = (t_VBDriver *)desc->args;
 
-    VbEngineProcessEvSend(this_driver, ENGINE_EV_DISCONNECT, NULL);
+    do {
+      engine_err = VbEngineProcessEvSend(this_driver, ENGINE_EV_DISCONNECT, NULL);
+    } while(engine_err == VB_ENGINE_ERROR_FULL_QUEUE);
+    
   }
 }
 
@@ -332,7 +338,9 @@ static t_vbEAError VbEngineEADriverReadyCb(t_vbEADesc *desc, struct sockaddr_in6
     {
       this_driver = (t_VBDriver *)desc->args;
 
-      VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
+      do {
+        ret = VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
+      } while(ret == VB_ENGINE_ERROR_FULL_QUEUE);
     }
   }
 

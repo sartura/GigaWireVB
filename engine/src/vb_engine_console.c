@@ -2711,7 +2711,10 @@ static t_VB_engineErrorCode VbEngineConsoleDriverSNRProbeReqCb(t_VBDriver *thisD
     // Force measure
     loop_args->writeFun("Executing SNR probes measure on driver '%s'.\n", thisDriver->vbDriverID);
     VbLogPrintExt(VB_LOG_INFO, thisDriver->vbDriverID, "SNR probes measure requested by user");
-    ret = VbEngineProcessEvSend(thisDriver, ENGINE_EV_SNR_PROBES_MEAS_FORCE, loop_args->data);
+
+    do {
+      ret = VbEngineProcessEvSend(thisDriver, ENGINE_EV_SNR_PROBES_MEAS_FORCE, loop_args->data);
+    } while(ret == VB_ENGINE_ERROR_FULL_QUEUE);
   }
 
   return ret;

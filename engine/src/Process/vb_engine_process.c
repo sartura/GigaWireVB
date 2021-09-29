@@ -55,6 +55,7 @@
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
 #if (_VALGRIND_ == 1)
 #include <valgrind/helgrind.h>
@@ -199,11 +200,12 @@ static t_VB_engineErrorCode VbEngineProcessQueueFlush(void);
 #define VB_ENGINE_ALIGN_CHANGE_MAX_ATTS         (3)
 #define VB_ENGINE_PROCESS_THREAD_NAME           "vb_engine_process"
 #define VB_ENGINE_PROCESS_MQ_MSG_SIZE           (sizeof(t_VBProcessMsg))
-#define VB_ENGINE_PROCESS_MQ_MAX_MSGS           (200)
+#define VB_ENGINE_PROCESS_MQ_MAX_MSGS           (60000)
 #define VB_ENGINE_PROCESS_MQ_NAME               "/VbEngineProcessQ"
 #define VB_ENGINE_CHANGES_APPLY_MARGIN          (10) // In ms
 
 #define VB_ENGINE_ALIVE_CHECK_TIMEOUT           (10000)
+#define VB_ENGINE_QUEUE_SEND_TIMEOUT            (10000) // In ns
 
 
 /*
@@ -5510,6 +5512,7 @@ static t_VB_engineErrorCode VbEngineProcessFrameRxToEventTranslate(t_vbEAMsg *ms
 static t_VB_engineErrorCode VbEngineGenericEvSend(mqd_t queue, t_VBProcessMsg *msg)
 {
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+  struct timespec timeout;
 
   if (msg == NULL)
   {
@@ -5530,11 +5533,33 @@ static t_VB_engineErrorCode VbEngineGenericEvSend(mqd_t queue, t_VBProcessMsg *m
       msg_prio = VB_THREADMSG_PRIORITY;
     }
 
-    err = mq_send(queue, ((const char *)(msg)), VB_ENGINE_PROCESS_MQ_MSG_SIZE, msg_prio);
+    err = clock_gettime(CLOCK_REALTIME, &timeout);
+    if (err != 0)
+    {
+      VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Error %s (%s) getting current time", err, strerror(errno));
+      ret = VB_ENGINE_ERROR_CLOCK;
+    }
+
+    timeout.tv_nsec += VB_ENGINE_QUEUE_SEND_TIMEOUT;
+    err = mq_timedsend(queue, ((const char *)(msg)), VB_ENGINE_PROCESS_MQ_MSG_SIZE, msg_prio, &timeout);
 
     if (err != 0)
     {
-      ret = VB_ENGINE_ERROR_QUEUE;
+      if ((errno == ETIMEDOUT) || (errno == EAGAIN)){
+        ret = VB_ENGINE_ERROR_FULL_QUEUE;
+      } 
+      else 
+      {
+        if (msg->senderDriver == NULL)
+        {
+          VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR ,"Error sending message to engine process Queue. errno: %s", strerror(errno));
+        }
+        else
+        {
+          VbLogPrintExt(VB_LOG_ERROR, msg->senderDriver->vbDriverID ,"Error sending message to engine process Queue. errno: %s", strerror(errno));
+        }
+        ret = VB_ENGINE_ERROR_QUEUE;
+      }
     }
   }
 
@@ -5594,7 +5619,7 @@ t_VB_engineErrorCode VbEngineProcessEvSend(t_VBDriver *driver, t_VB_Comm_Event e
 
     ret = VbEngineGenericEvSend(vbEngineProcess.wrOnlyQueueId, &vb_process_msg);
 
-    if (ret != VB_ENGINE_ERROR_NONE)
+    if ((ret != VB_ENGINE_ERROR_NONE) && (ret != VB_ENGINE_ERROR_FULL_QUEUE))
     {
       VbLogPrintExt(VB_LOG_ERROR, driver->vbDriverID, "Error sending message to engine process Queue. errno: %s", strerror(errno));
     }
@@ -5650,7 +5675,9 @@ t_VB_engineErrorCode VbEngineProcessEAFrameRx(t_vbEAMsg *msg, t_VBDriver *thisDr
     vb_process_msg.args = NULL;
     vb_process_msg.clusterCast.numCLuster = 0; // Not needed here
 
+    do {
     res = VbEngineGenericEvSend(thisDriver->vbEAConnDesc.queueId, &vb_process_msg);
+    } while (res == VB_ENGINE_ERROR_FULL_QUEUE);
 
     if (res != VB_ENGINE_ERROR_NONE)
     {
@@ -5695,7 +5722,9 @@ t_VB_engineErrorCode VbEngineProcessAllDriversEvSend(t_VB_Comm_Event event, void
     vb_process_msg.args = args;
     vb_process_msg.clusterCast.numCLuster = 0; // 0 and senderDriver == NULL -> TO ALL
 
+    do {
     ret = VbEngineGenericEvSend(vbEngineProcess.wrOnlyQueueId, &vb_process_msg);
+    } while (ret == VB_ENGINE_ERROR_FULL_QUEUE);
 
     if (ret != VB_ENGINE_ERROR_NONE)
     {
@@ -5736,7 +5765,9 @@ t_VB_engineErrorCode VbEngineProcessClusterXDriversEvSend(t_VB_Comm_Event event,
     vb_process_msg.clusterCast.numCLuster = 1;
     vb_process_msg.clusterCast.list[0] = clusterId;
 
+    do {
     ret = VbEngineGenericEvSend(vbEngineProcess.wrOnlyQueueId, &vb_process_msg);
+    } while (ret == VB_ENGINE_ERROR_FULL_QUEUE);
 
     if (ret != VB_ENGINE_ERROR_NONE)
     {
@@ -5776,7 +5807,9 @@ t_VB_engineErrorCode VbEngineProcessClustersListDriversEvSend(t_VB_Comm_Event ev
     vb_process_msg.args = args;
     vb_process_msg.clusterCast = clusters;
 
+    do {
     ret = VbEngineGenericEvSend(vbEngineProcess.wrOnlyQueueId, &vb_process_msg);
+    } while (ret == VB_ENGINE_ERROR_FULL_QUEUE);
 
     if (ret != VB_ENGINE_ERROR_NONE)
     {
