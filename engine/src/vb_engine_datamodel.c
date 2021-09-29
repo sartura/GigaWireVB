@@ -378,53 +378,53 @@ static void VbEngineTimeOutCb(sigval_t sigval)
   if ((err == VB_ENGINE_ERROR_NONE) &&
       (VbEngineProcessThreadRunningGet() == TRUE))
   {
-      pthread_mutex_lock(&vbEngineTimersMutex);
+    pthread_mutex_lock(&vbEngineTimersMutex);
 
-      if (timer->periodic == FALSE)
+    if (timer->periodic == FALSE)
+    {
+      // Release the timer
+      VbEngineInternalTimeoutStop(timer);
+    }
+
+    if (timer->driver == NULL)
+    {
+      if(timer->clusterCast.numCLuster == 0)
       {
-        // Release the timer
-        VbEngineInternalTimeoutStop(timer);
-      }
-
-      if (timer->driver == NULL)
-      {
-        if(timer->clusterCast.numCLuster == 0)
-        {
-          // Send timeout event to engine to all drivers
-          err = VbEngineProcessAllDriversEvSend(timer->event, NULL);
-        }
-        else
-        {
-          // Send timeout event to engine to a specific cluster
-          err = VbEngineProcessClusterXDriversEvSend(timer->event, NULL, timer->clusterCast.list[0]);
-        }
-
-        if (err != VB_ENGINE_ERROR_NONE)
-        {
-          VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Error %d while sending event %s to engine",
-              err, FSMEvToStrGet(timer->event));
-        }
+        // Send timeout event to engine to all drivers
+        err = VbEngineProcessAllDriversEvSend(timer->event, NULL);
       }
       else
       {
-        // Send timeout event to driver
-        do {
-          if (err == VB_ENGINE_ERROR_FULL_QUEUE) pthread_mutex_lock(&vbEngineTimersMutex);
-          err = VbEngineProcessEvSend(timer->driver, timer->event, NULL);
-
-          if (err == VB_ENGINE_ERROR_FULL_QUEUE)
-          {
-            pthread_mutex_unlock(&vbEngineTimersMutex);
-            sleep(VB_ENGINE_THREAD_TIMEOUT);
-          }
-          else if (err != VB_ENGINE_ERROR_NONE)
-          {
-            VbLogPrintExt(VB_LOG_ERROR, timer->driver->vbDriverID, "Error %d while sending event %s", err, FSMEvToStrGet(timer->event));
-          }
-        } while(err == VB_ENGINE_ERROR_FULL_QUEUE);
+        // Send timeout event to engine to a specific cluster
+        err = VbEngineProcessClusterXDriversEvSend(timer->event, NULL, timer->clusterCast.list[0]);
       }
 
-      pthread_mutex_unlock(&vbEngineTimersMutex);
+      if (err != VB_ENGINE_ERROR_NONE)
+      {
+        VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Error %d while sending event %s to engine",
+            err, FSMEvToStrGet(timer->event));
+      }
+    }
+    else
+    {
+      // Send timeout event to driver
+      do {
+        if (err == VB_ENGINE_ERROR_FULL_QUEUE) pthread_mutex_lock(&vbEngineTimersMutex);
+        err = VbEngineProcessEvSend(timer->driver, timer->event, NULL);
+
+        if (err == VB_ENGINE_ERROR_FULL_QUEUE)
+        {
+          pthread_mutex_unlock(&vbEngineTimersMutex);
+          sleep(VB_ENGINE_THREAD_TIMEOUT);
+        }
+        else if (err != VB_ENGINE_ERROR_NONE)
+        {
+          VbLogPrintExt(VB_LOG_ERROR, timer->driver->vbDriverID, "Error %d while sending event %s", err, FSMEvToStrGet(timer->event));
+        }
+      } while(err == VB_ENGINE_ERROR_FULL_QUEUE);
+    }
+
+    pthread_mutex_unlock(&vbEngineTimersMutex);
   }
 }
 
