@@ -75,7 +75,7 @@
 #define SIGNAL_ABORT                  (SIGINT)             // Used to cancel execution (Ctrl+C)
 #define SIGNAL_TIMER                  (TIMER_SIGNAL_NUM)   // Used to wake up after a timer expiration
 #define SIGNAL_WAKE_UP                (SIGUSR1)            // Used to wake up during a sleep
-#define THREAD_MAX_NUM                (50)
+#define THREAD_MAX_NUM                (5000)
 #define THREAD_NAME_LEN               (30)
 
 /*
