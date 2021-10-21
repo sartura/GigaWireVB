@@ -336,11 +336,12 @@ static t_vbEAError VbEngineEADriverReadyCb(t_vbEADesc *desc, struct sockaddr_in6
   {
     if(vbEAServerMode == TRUE)
     {
+      t_VB_engineErrorCode engine_err;
       this_driver = (t_VBDriver *)desc->args;
 
       do {
-        ret = VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
-      } while(ret == VB_ENGINE_ERROR_FULL_QUEUE);
+        engine_err = VbEngineProcessEvSend(this_driver, ENGINE_EV_CONNECT, NULL);
+      } while (engine_err == VB_ENGINE_ERROR_FULL_QUEUE);
     }
   }
 
