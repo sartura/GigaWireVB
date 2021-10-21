@@ -69,7 +69,7 @@
 #define VB_ENGINE_LAST_LOW_BAND_28MHZ_NUM_CARRIER_IDX    (504)
 #define VB_ENGINE_LAST_LOW_BAND_50MHZ_NUM_CARRIER_IDX    (952)
 #define VB_ENGINE_MAX_FILE_NAME_SIZE                     (50)
-#define VB_ENGINE_THREAD_TIMEOUT                         (0.1)
+#define VB_ENGINE_THREAD_TIMEOUT                         (20)
 
 #ifndef ENGINE_DISABLE_METRICS
 #  define VB_ENGINE_METRICS_ENABLED                      (1)

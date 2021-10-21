@@ -64,6 +64,7 @@
 #include "vb_priorities.h"
 #include "vb_counters.h"
 #include "vb_util.h"
+#include "vb_thread.h"
 #include "vb_timer.h"
 #include "vb_engine_metrics_reports.h"
 #include "vb_engine_drivers_list.h"
@@ -415,7 +416,7 @@ static void VbEngineTimeOutCb(sigval_t sigval)
         if (err == VB_ENGINE_ERROR_FULL_QUEUE)
         {
           pthread_mutex_unlock(&vbEngineTimersMutex);
-          sleep(VB_ENGINE_THREAD_TIMEOUT);
+          VbThreadSleep(VB_ENGINE_THREAD_TIMEOUT);
         }
         else if (err != VB_ENGINE_ERROR_NONE)
         {
