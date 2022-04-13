@@ -5337,7 +5337,7 @@ static t_VB_engineErrorCode VbeFSMAlignmentClusterAllStopSyncTransition(t_VBProc
 
     if (error == VB_ENGINE_ERROR_NONE)
     {
-      if(stop_tx == TRUE)
+      if(stop_tx == TRUE && processMsg->senderDriver->clusterId > 0)
       {
         //  Remove Ref and Relays in this cluster
         VbEngineAlignClusterRoleReset(processMsg->senderDriver->clusterId);
