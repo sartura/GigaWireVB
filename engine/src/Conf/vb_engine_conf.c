@@ -210,6 +210,20 @@ typedef struct s_persistentLog
   BOOLEAN         circular;
 } t_persistentLog;
 
+typedef struct s_VDSLSearchParams
+{
+  INT16U                    freqs[16];
+  INT8U                     nbDetectBands;
+  INT8U                     freqTolerance;
+  INT8U                     threshold;
+} t_VDSLSearchParams;
+
+typedef struct s_PSDShapeParams
+{
+  INT16U                    freqs[10];
+  INT16U                    attLevel[10];
+} t_PSDShapeParams;
+
 typedef struct s_vbEngineConf
 {
   CHAR                      engineId[VB_ENGINE_ID_MAX_SIZE];
@@ -236,6 +250,8 @@ typedef struct s_vbEngineConf
   t_alignParams             alignParams;
   t_persistentLog           persistentLog;
   t_socketAlive             socketAlive;
+  t_VDSLSearchParams        vDSLSearchParams;
+  t_PSDShapeParams          PSDShapeParams;
 } t_vbEngineConf;
 
 /*
@@ -1189,6 +1205,143 @@ static t_VB_engineErrorCode VbEnginePersistentLogParse( ezxml_t persistentLogCon
   return ret;
 }
 
+/*********************************************************************************/
+
+static t_VB_engineErrorCode VbEngineVDSLParse( ezxml_t vDSLConf )
+{
+  t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+  ezxml_t              ez_temp;
+  ezxml_t              ez_freq;
+
+  ez_temp = ezxml_child(vDSLConf, "Threshold");
+
+  if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+  {
+    errno = 0;
+    vbEngineConf.vDSLSearchParams.threshold = strtoul(ez_temp->txt, NULL, 0);
+
+    if (errno != 0)
+    {
+      printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/Threshold value\n", errno, strerror(errno));
+      ret = VB_ENGINE_ERROR_INI_FILE;
+    }
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    ez_temp = ezxml_child(vDSLConf, "NumberDetectBands");
+
+    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+    {
+      errno = 0;
+      vbEngineConf.vDSLSearchParams.nbDetectBands = strtoul(ez_temp->txt, NULL, 0);
+
+      if (errno != 0)
+      {
+        printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/NumberDetectBands value\n", errno, strerror(errno));
+        ret = VB_ENGINE_ERROR_INI_FILE;
+      }
+    }
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    ez_temp = ezxml_child(vDSLConf, "FrequencyTolerance");
+
+    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+    {
+      errno = 0;
+      vbEngineConf.vDSLSearchParams.freqTolerance = strtoul(ez_temp->txt, NULL, 0);
+
+      if (errno != 0)
+      {
+        printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/FrequencyTolerance value\n", errno, strerror(errno));
+        ret = VB_ENGINE_ERROR_INI_FILE;
+      }
+    }
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    ez_temp = ezxml_child(vDSLConf, "Frequencies");
+
+    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+    {
+      int i = 0;
+      for (ez_freq = ezxml_child(ez_temp, "Frequency"); ez_freq != NULL; ez_freq = ez_freq->next)
+      {
+        if (i >= 16)
+          break;
+
+        errno = 0;
+        vbEngineConf.vDSLSearchParams.freqs[i++] = strtoul(ez_freq->txt, NULL, 0);
+
+        if (errno != 0)
+        {
+          printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/Frequencies/Frequency[%d] value\n", errno, strerror(errno), i-1);
+          ret = VB_ENGINE_ERROR_INI_FILE;
+        }
+      }
+      if (i < 16)
+      {
+        vbEngineConf.vDSLSearchParams.freqs[i] = 0;
+      }
+    }
+  }
+
+  return ret;
+}
+
+/*********************************************************************************/
+
+static t_VB_engineErrorCode VbEnginePSDShapeParse( ezxml_t PSDShape )
+{
+  t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+  ezxml_t              ez_temp;
+  ezxml_t              ez_shape;
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    ez_temp = ezxml_child(PSDShape, "Shapes");
+
+    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+    {
+      int i = 0;
+      for (ez_shape = ezxml_child(ez_temp, "Shape"); ez_shape != NULL; ez_shape = ez_shape->next)
+      {
+        if (i >= 10)
+          break;
+
+        errno = 0;
+        ez_temp = ezxml_child(ez_shape, "Frequency");
+        vbEngineConf.PSDShapeParams.freqs[i] = strtoul(ez_temp->txt, NULL, 0);
+        if (errno != 0)
+        {
+          printf("ERROR (%d:%s) parsing .ini file: Invalid PSDShape/Shapes/Shape/Frequency[%d] value\n", errno, strerror(errno), i-1);
+          ret = VB_ENGINE_ERROR_INI_FILE;
+        }
+
+        errno = 0;
+        ez_temp = ezxml_child(ez_shape, "AttLevel");
+        vbEngineConf.PSDShapeParams.attLevel[i++] = strtoul(ez_temp->txt, NULL, 0);
+        if (errno != 0)
+        {
+          printf("ERROR (%d:%s) parsing .ini file: Invalid PSDShape/Shapes/Shape/AttLevel[%d] value\n", errno, strerror(errno), i-1);
+          ret = VB_ENGINE_ERROR_INI_FILE;
+        }
+      }
+      if (i < 10)
+      {
+        vbEngineConf.PSDShapeParams.freqs[i] = 0;
+        vbEngineConf.PSDShapeParams.attLevel[i] = 0;
+      }
+    }
+  }
+
+  return ret;
+}
+
+
 /************************************************************************/
 
 static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
@@ -1202,6 +1355,7 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   ezxml_t              socket_alive_conf;
   ezxml_t              user_profiles;
   ezxml_t              align_params;
+  ezxml_t              vdsl_params;
   struct in6_addr      ip_addr;
   INT16U               num_user_profiles;
 
@@ -1265,6 +1419,19 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   vbEngineConf.persistentLog.numLines          = VB_ENGINE_CONF_DEFAULT_PERSLOG_NUMLINES;
   vbEngineConf.persistentLog.verboseLevel      = VB_ENGINE_CONF_DEFAULT_PERSLOG_VERBOSE;
   vbEngineConf.persistentLog.circular          = VB_ENGINE_CONF_DEFAULT_PERSLOG_CIRCULAR;
+
+  vbEngineConf.vDSLSearchParams.threshold      = 12;
+  vbEngineConf.vDSLSearchParams.freqTolerance  = 50;
+  vbEngineConf.vDSLSearchParams.nbDetectBands  = 3;
+  vbEngineConf.vDSLSearchParams.freqs[0]       = 2000;
+  vbEngineConf.vDSLSearchParams.freqs[1]       = 5200;
+  vbEngineConf.vDSLSearchParams.freqs[2]       = 7800;
+  vbEngineConf.vDSLSearchParams.freqs[3]       = 8500;
+  vbEngineConf.vDSLSearchParams.freqs[4]       = 12000;
+  vbEngineConf.vDSLSearchParams.freqs[5]       = 0;
+
+  vbEngineConf.PSDShapeParams.freqs[0]         = 0;
+  vbEngineConf.PSDShapeParams.attLevel[0]      = 0;
 
   if (path == NULL)
   {
@@ -1715,6 +1882,34 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
     }
   }
 
+  if (error == VB_ENGINE_ERROR_NONE)
+  {
+    vdsl_params = ezxml_child(engine, "vDSL");
+
+    if (vdsl_params != NULL)
+    {
+      error = VbEngineVDSLParse( vdsl_params );
+    }
+    else
+    {
+      // Use default value
+    }
+  }
+
+  if (error == VB_ENGINE_ERROR_NONE)
+  {
+    vdsl_params = ezxml_child(engine, "PSDShape");
+
+    if (vdsl_params != NULL)
+    {
+      error = VbEnginePSDShapeParse( vdsl_params );
+    }
+    else
+    {
+      // Use default value
+    }
+  }
+
   if (engine != NULL)
   {
     ezxml_free(engine);
@@ -1845,6 +2040,24 @@ void VbEngineConfDump(t_writeFun writeFun)
   writeFun("| %-48s | %18lu (%7.2f) |\n",      "Alignment - min pow hyst",        vbEngineConf.alignParams.minPowHyst, VbEngineAlignAdcOutToFPGet(vbEngineConf.alignParams.minPowHyst));
   writeFun("| %-48s | %28s |\n",               "Alignment - metrics",             vbEngineConf.alignParams.metrics?"ENABLED":"DISABLED");
 
+  writeFun("| %-48s | %28u |\n",               "vDSLSearch - number of bands to detect", vbEngineConf.vDSLSearchParams.nbDetectBands);
+  writeFun("| %-48s | %28u |\n",               "vDSLSearch - threshold",          vbEngineConf.vDSLSearchParams.threshold);
+  writeFun("| %-48s | %28u |\n",               "vDSLSearch - frequency tolerance",vbEngineConf.vDSLSearchParams.freqTolerance);
+  for(i = 0; i < 16; i++)
+  {
+    if (vbEngineConf.vDSLSearchParams.freqs[i] == 0)
+      break;
+    writeFun("| %-44s (%1u) | %28u |\n",       "vDSL search bands - Band", i, vbEngineConf.vDSLSearchParams.freqs[i]);
+  }
+
+  for(i = 0; i < 10; i++)
+  {
+    if (vbEngineConf.PSDShapeParams.freqs[i] == 0)
+      break;
+    writeFun("| %-44s (%1u) | %22u | %3u |\n",       "PSD Shape bands - Band - Attenuation", i, vbEngineConf.PSDShapeParams.freqs[i],
+                                                                                                vbEngineConf.PSDShapeParams.attLevel[i]);
+  }
+
   if (VbEngineConfAlignPrioRefEnabled() == TRUE)
   {
     INT32U idx;
@@ -1924,6 +2137,13 @@ void VbEngineConfDump(t_writeFun writeFun)
   writeFun("| %-48s | %28u |\n",               "Socket Alive - Period",  vbEngineConf.socketAlive.period);
   writeFun("| %-48s | %28u |\n",               "Socket Alive - Nlost",   vbEngineConf.socketAlive.nLostMsgThr);
   writeFun("===================================================================================\n");
+}
+
+/*******************************************************************/
+
+void VbEngineConfVdslCoexSet(BOOL set)
+{
+  vbEngineConf.vdslCoex = set;
 }
 
 /*******************************************************************/
@@ -2438,6 +2658,40 @@ BOOLEAN VbEngineConfAlignBlackListIsEnabled(void)
   is_enabled = (vbEngineConf.alignParams.nodeCustomList.size > 0);
 
   return is_enabled;
+}
+
+/*******************************************************************/
+
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT8U *freqTolerance, INT8U *thr)
+{
+  *vDSL_SearchFreqs = &vbEngineConf.vDSLSearchParams.freqs[0];
+  *nbSearchFreqs = sizeof(vbEngineConf.vDSLSearchParams.freqs) / sizeof(vbEngineConf.vDSLSearchParams.freqs[0]);
+  *nbDetect = vbEngineConf.vDSLSearchParams.nbDetectBands;
+  *freqTolerance = vbEngineConf.vDSLSearchParams.freqTolerance;
+  *thr = vbEngineConf.vDSLSearchParams.threshold;
+
+  return TRUE;
+}
+
+/*******************************************************************/
+
+BOOLEAN VbEnginePSDShapeConfGetShapeParams(INT16U **PSDShape_freqs, INT16U **PSDShape_attLevel, int *nbShapes)
+{
+  int shapes = 0;
+
+  *PSDShape_freqs = &vbEngineConf.PSDShapeParams.freqs[0];
+  *PSDShape_attLevel = &vbEngineConf.PSDShapeParams.attLevel[0];
+
+  for (int i = 0; i <sizeof(vbEngineConf.PSDShapeParams.freqs) / sizeof(vbEngineConf.PSDShapeParams.freqs[0]); i++)
+  {
+    if (vbEngineConf.PSDShapeParams.freqs[i] == 0)
+      break;
+    shapes++;
+  }
+
+  *nbShapes = shapes;
+
+  return TRUE;
 }
 
 /*******************************************************************/

@@ -72,6 +72,8 @@
 
 #define MEASURE_PLAN_SIZE_WITHDMS(NUMDEVS)    (MEASURE_PLAN_SIZE_WITHOUTDMS(NUMDEVS) + MEASURE_SNR_DEV_PLAN_SIZE)
 
+#define VB_MEASURE_TO_FLOAT(X)                             ((float)(X) / 4)
+
 /*
  ************************************************************************
  ** Public type definitions

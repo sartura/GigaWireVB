@@ -185,6 +185,11 @@ INT32U VbEngineConfMaxMetricsLogSizeGet(void);
 BOOLEAN VbEngineConfVdslCoexGet(void);
 
 /**
+ * @brief Set the value for vdslCoexistence
+ **/
+void VbEngineConfVdslCoexSet(BOOL set);
+
+/**
  * @brief Returns the value of SaveMeasures
  * @return TRUE or FALSE
  **/
@@ -398,6 +403,10 @@ BOOLEAN VbEngineConfAlignBlackListIsMacAllowed(INT8U *targetMac, INT8U *macToChe
  * @return TRUE: blacklist is enabled; FALSE: otherwise
  **/
 BOOLEAN VbEngineConfAlignBlackListIsEnabled(void);
+
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetectBands, INT8U *freqTolerance, INT8U *thr);
+
+BOOLEAN VbEnginePSDShapeConfGetShapeParams(INT16U **PSDShape_freqs, INT16U **PSDShape_attLevel, int *nbShapes);
 
 #endif /* VB_ENGINE_CONF_H_ */
 

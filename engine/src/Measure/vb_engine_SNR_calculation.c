@@ -645,6 +645,52 @@ static t_VB_engineErrorCode VbSnrMIMOIndCalculate(t_VBDriver *driver, t_node *no
 
 /*******************************************************************/
 
+static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
+                              t_node *node,
+                              const t_processMeasure *bgnMeasure)
+{
+  INT16U *vDSL_searchFreqs;
+  int nbSearchedFreqs;
+  INT8U freqTolerance;
+  INT8U threshold;
+  BOOL detected = FALSE;
+  int nb_detected = 0;
+  int nbDetect = 0;
+  int thr;
+
+  VbEngineConfVDSLGetSearchParams(&vDSL_searchFreqs, &nbSearchedFreqs, &nbDetect, &freqTolerance, &threshold);
+
+  thr = threshold << 2;
+
+  for (int i = 0; i < nbSearchedFreqs; i++)
+  {
+    if (vDSL_searchFreqs[i] == 0)
+    {
+      break;
+    }
+    else
+    {
+      int idx_start = MAX(0, FREQ2ABSOLUTECARRIERIDX(vDSL_searchFreqs[i] - freqTolerance));
+      int idx_end   = MAX(0, FREQ2ABSOLUTECARRIERIDX(vDSL_searchFreqs[i] + freqTolerance));
+      int sum = 0;
+
+      for (int idx = idx_start; idx <= idx_end; idx++)
+      {
+        sum += bgnMeasure->measures[idx];
+      }
+
+      nb_detected += (sum > thr);
+    }
+
+    VbLogPrintExt(VB_LOG_INFO, driver->vbDriverID, "Number of detected VDSL bands: %d >= %d", nb_detected, nbDetect);
+    detected = nb_detected >= nbDetect ? TRUE : FALSE;
+  }
+
+  return detected;
+}
+
+/*******************************************************************/
+
 /**
  * @brief Calculate the SNR for a device
  * @param[in] driver Pointer to related driver
@@ -866,6 +912,12 @@ static t_VB_engineErrorCode VbSnrCalculateNodeLoopCb(t_VBDriver *driver, t_domai
         VbMetricsReportGenericEvent(VB_METRICS_EVENT_START_SNR_HIGH_CALC, mac, sizeof(INT8U) * ETH_ALEN);
         VbMetricsResetTimeMarkers();
 #endif
+
+        ret = VbVDSLDeviceProbe(driver,
+                                node,
+                                &(node->measures.BGNMeasure));
+
+        driver->vDSLpresent = ret;
 
         ret = VbSnrDeviceCalculate(driver,
                                    node,

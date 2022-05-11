@@ -86,7 +86,6 @@
 #define VB_MEASURE_FILE_NAME_SIZE                          (45)
 #define VB_MEASURE_ROOT_FOLDER                             ("measures")
 #define VB_MEASURE_PROBES_FOLDER                           ("measures/SNRProbes")
-#define VB_MEASURE_TO_FLOAT(X)                             ((float)((X) / 4))
 #define VB_MEASURE_BUFFER_TO_FILE_SIZE                     (5 * 1024 * 1024)
 #define VB_MEASURE_CLUSTER_ID_FMT                          ("Cluster_id_%06u_")
 #define VB_MEASURE_CLUSTER_ID_LEN                          (19)

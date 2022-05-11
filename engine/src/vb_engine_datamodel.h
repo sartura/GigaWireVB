@@ -604,6 +604,7 @@ struct s_VBDriver
   INT32U                     transactionMinTime;
   INT32S                     clusterId;
   BOOLEAN                    definitiveDriverId;
+  BOOLEAN                    vDSLpresent;
 };
 
 typedef struct

@@ -165,6 +165,49 @@
 
 /*******************************************************************/
 
+static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChannelSettings *nodeChannelSettings)
+{
+  t_VB_engineErrorCode result = VB_ENGINE_ERROR_NONE;
+  t_psdShape *psd;
+
+  if (nodeChannelSettings != NULL)
+  {
+    INT16U *freqs = NULL;
+    INT16U *attLevel = NULL;
+    int nbShapes = 0;
+
+    psd = &(nodeChannelSettings->psdShape);
+
+    if (VbEnginePSDShapeConfGetShapeParams(&freqs, &attLevel, &nbShapes) == TRUE)
+    {
+      if (nbShapes == 0)
+      {
+        result = VB_ENGINE_ERROR_PARAMS;
+      }
+      else if (nodeChannelSettings->boostInfo.level != nbShapes)
+      {
+        nodeChannelSettings->boostInfo.level = nbShapes;
+        nodeChannelSettings->boostInfo.perc = IN_PERC(freqs[0], freqs[nbShapes-1]);
+        psd->sendUpdate = TRUE;
+        psd->numPSDBands = nbShapes;
+        for (int i = 0; i < nbShapes; i++)
+        {
+          psd->psdBandLevel[i].attLevel = attLevel[i];
+          psd->psdBandLevel[i].stopCarrier = MAX(0, FREQ2GRIDCARRIERIDX(freqs[i], 1));
+        }
+      }
+    }
+  }
+  else
+  {
+    result = VB_ENGINE_ERROR_DATA_MODEL;
+  }
+
+  return result;
+}
+
+/*******************************************************************/
+
 /*
  ************************************************************************
  ** Public function implementation
@@ -285,7 +328,15 @@ t_VB_engineErrorCode VbEngineLeftToRightPSDShapeRun(t_VBDriver *driver, t_domain
     {
       t_psdl2rArgs         *psd_l2r_args = ((t_psdl2rArgs *)args);
 
-      if (node->channelSettings.boostInfo.mode == VB_ENGINE_BOOST_MODE_AUTO)
+      if (driver->vDSLpresent == TRUE)
+      {
+        ret = VbChannelCapacityPSDNBandsSetCustomShape(&(node->channelSettings));
+        if (ret != VB_ENGINE_ERROR_NONE)
+        {
+          VbLogPrintExt(VB_LOG_ERROR, driver->vbDriverID, "Error %d Setting PSD Bands for node %s", ret, node->MACStr);
+        }
+      }
+      else if (node->channelSettings.boostInfo.mode == VB_ENGINE_BOOST_MODE_AUTO)
       {
         VbLogPrintExt(VB_LOG_DEBUG, driver->vbDriverID, "Node %s, num Bands %u", node->MACStr, node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos]);
         ret = VbChannelCapacityPSDNBandsSet( &(node->channelSettings),
