@@ -674,7 +674,7 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
       int idx_end   = MAX(0, FREQ2ABSOLUTECARRIERIDX(vDSL_searchFreqs[i] + freqTolerance));
       int sum = 0;
 
-      for (int idx = idx_start; idx <= idx_end; idx++)
+      for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
       {
         sum += bgnMeasure->measures[idx];
       }
