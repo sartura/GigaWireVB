@@ -214,7 +214,7 @@ typedef struct s_VDSLSearchParams
 {
   INT16U                    freqs[16];
   INT8U                     nbDetectBands;
-  INT8U                     freqTolerance;
+  INT16U                    freqTolerance;
   INT8U                     threshold;
 } t_VDSLSearchParams;
 
@@ -2662,7 +2662,7 @@ BOOLEAN VbEngineConfAlignBlackListIsEnabled(void)
 
 /*******************************************************************/
 
-BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT8U *freqTolerance, INT8U *thr)
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT16U *freqTolerance, INT8U *thr)
 {
   *vDSL_SearchFreqs = &vbEngineConf.vDSLSearchParams.freqs[0];
   *nbSearchFreqs = sizeof(vbEngineConf.vDSLSearchParams.freqs) / sizeof(vbEngineConf.vDSLSearchParams.freqs[0]);

@@ -651,7 +651,7 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
 {
   INT16U *vDSL_searchFreqs;
   int nbSearchedFreqs;
-  INT8U freqTolerance;
+  INT16U freqTolerance;
   INT8U threshold;
   BOOL detected = FALSE;
   int nb_detected = 0;
