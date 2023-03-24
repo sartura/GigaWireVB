@@ -1421,10 +1421,10 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   vbEngineConf.persistentLog.circular          = VB_ENGINE_CONF_DEFAULT_PERSLOG_CIRCULAR;
 
   vbEngineConf.vDSLSearchParams.threshold      = 12;
-  vbEngineConf.vDSLSearchParams.freqTolerance  = 50;
-  vbEngineConf.vDSLSearchParams.nbDetectBands  = 3;
-  vbEngineConf.vDSLSearchParams.freqs[0]       = 2000;
-  vbEngineConf.vDSLSearchParams.freqs[1]       = 5200;
+  vbEngineConf.vDSLSearchParams.freqTolerance  = 725;
+  vbEngineConf.vDSLSearchParams.nbDetectBands  = 2;
+  vbEngineConf.vDSLSearchParams.freqs[0]       = 4475;
+  vbEngineConf.vDSLSearchParams.freqs[1]       = 9950;
   vbEngineConf.vDSLSearchParams.freqs[2]       = 7800;
   vbEngineConf.vDSLSearchParams.freqs[3]       = 8500;
   vbEngineConf.vDSLSearchParams.freqs[4]       = 12000;
