@@ -670,8 +670,8 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
     }
     else
     {
-      int idx_start = MAX(0, FREQ2ABSOLUTECARRIERIDX(vDSL_searchFreqs[i] - freqTolerance));
-      int idx_end   = MAX(0, FREQ2ABSOLUTECARRIERIDX(vDSL_searchFreqs[i] + freqTolerance));
+      int idx_start = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] - freqTolerance, bgnMeasure->spacing));
+      int idx_end   = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] + freqTolerance, bgnMeasure->spacing));
       int sum = 0;
 
       for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
