@@ -676,7 +676,7 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
 
       for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
       {
-        sum += bgnMeasure->measures[idx];
+        sum += bgnMeasure->measuresRx1[idx];
       }
 
       nb_detected += (sum > thr);
