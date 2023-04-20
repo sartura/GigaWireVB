@@ -216,6 +216,7 @@ typedef struct s_VDSLSearchParams
   INT16U                    freqTolerance[16];
   INT8U                     nbDetectBands;
   INT8U                     threshold;
+  INT8U                     stddev;
 } t_VDSLSearchParams;
 
 typedef struct s_PSDShapeParams
@@ -1230,6 +1231,23 @@ static t_VB_engineErrorCode VbEngineVDSLParse( ezxml_t vDSLConf )
 
   if (ret == VB_ENGINE_ERROR_NONE)
   {
+    ez_temp = ezxml_child(vDSLConf, "StdDev");
+
+    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
+    {
+      errno = 0;
+      vbEngineConf.vDSLSearchParams.stddev = strtoul(ez_temp->txt, NULL, 0);
+
+      if (errno != 0)
+      {
+        printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/StdDev value\n", errno, strerror(errno));
+        ret = VB_ENGINE_ERROR_INI_FILE;
+      }
+    }
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
     ez_temp = ezxml_child(vDSLConf, "NumberDetectBands");
 
     if ((ez_temp != NULL) && (ez_temp->txt != NULL))
@@ -1426,6 +1444,7 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   vbEngineConf.persistentLog.circular          = VB_ENGINE_CONF_DEFAULT_PERSLOG_CIRCULAR;
 
   vbEngineConf.vDSLSearchParams.threshold      = 12;
+  vbEngineConf.vDSLSearchParams.stddev         = 5;
   vbEngineConf.vDSLSearchParams.nbDetectBands  = 2;
   vbEngineConf.vDSLSearchParams.freqs[0]       = 4475;
   vbEngineConf.vDSLSearchParams.freqs[1]       = 9950;
@@ -2667,13 +2686,14 @@ BOOLEAN VbEngineConfAlignBlackListIsEnabled(void)
 
 /*******************************************************************/
 
-BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT16U **freqTolerance, INT8U *thr)
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT16U **freqTolerance, INT8U *thr, INT8U *stddev)
 {
   *vDSL_SearchFreqs = &vbEngineConf.vDSLSearchParams.freqs[0];
   *nbSearchFreqs = sizeof(vbEngineConf.vDSLSearchParams.freqs) / sizeof(vbEngineConf.vDSLSearchParams.freqs[0]);
   *nbDetect = vbEngineConf.vDSLSearchParams.nbDetectBands;
   *freqTolerance = &vbEngineConf.vDSLSearchParams.freqTolerance[0];
   *thr = vbEngineConf.vDSLSearchParams.threshold;
+  *stddev = vbEngineConf.vDSLSearchParams.stddev;
 
   return TRUE;
 }

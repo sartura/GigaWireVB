@@ -653,14 +653,17 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
   INT16U *freqTolerance;
   int nbSearchedFreqs;
   INT8U threshold;
+  INT8U stddev;
   BOOL detected = FALSE;
   int nb_detected = 0;
   int nbDetect = 0;
   int thr;
+  int dev;
 
-  VbEngineConfVDSLGetSearchParams(&vDSL_searchFreqs, &nbSearchedFreqs, &nbDetect, &freqTolerance, &threshold);
+  VbEngineConfVDSLGetSearchParams(&vDSL_searchFreqs, &nbSearchedFreqs, &nbDetect, &freqTolerance, &threshold, &stddev);
 
-  thr = threshold << 2;
+  thr = threshold;
+  dev = stddev;
 
   for (int i = 0; i < nbSearchedFreqs; i++)
   {
@@ -672,19 +675,31 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
     {
       int idx_start = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] - freqTolerance[i], bgnMeasure->spacing));
       int idx_end   = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] + freqTolerance[i], bgnMeasure->spacing));
-      int sum = 0;
+      int sum = 0, avg, count, stddev;
 
       for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
       {
         sum += bgnMeasure->measuresRx1[idx];
       }
 
-      nb_detected += (sum > thr);
-    }
+      count = idx_end + 1 - idx_start;
+      avg = (sum + (count / 2)) / count;
+      sum = 0;
 
-    VbLogPrintExt(VB_LOG_INFO, driver->vbDriverID, "Number of detected VDSL bands: %d >= %d", nb_detected, nbDetect);
-    detected = nb_detected >= nbDetect ? TRUE : FALSE;
+      for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
+      {
+        sum += abs(bgnMeasure->measuresRx1[idx] - avg);
+      }
+
+      stddev = (sum + (count / 2)) / count;
+
+      VbLogPrintExt(VB_LOG_INFO, driver->vbDriverID, "Band: %d | Thr: %d > %d | Dev: %d < %d", i, avg, thr, stddev, dev);
+      nb_detected += (avg > thr) && (stddev < dev);
+    }
   }
+
+  VbLogPrintExt(VB_LOG_INFO, driver->vbDriverID, "Number of detected VDSL bands: %d >= %d", nb_detected, nbDetect);
+  detected = nb_detected >= nbDetect ? TRUE : FALSE;
 
   return detected;
 }
