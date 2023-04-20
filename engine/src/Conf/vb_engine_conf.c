@@ -2050,6 +2050,8 @@ void VbEngineConfDump(t_writeFun writeFun)
   {
     if (vbEngineConf.vDSLSearchParams.freqs[i] == 0)
       break;
+    if (vbEngineConf.vDSLSearchParams.freqTolerance[i] == 0)
+      break;
     writeFun("| %-44s (%1u) | %14u | %14u\n",       "vDSL search bands - Band", i, vbEngineConf.vDSLSearchParams.freqs[i], vbEngineConf.vDSLSearchParams.freqTolerance[i]);
   }
 
