@@ -404,7 +404,7 @@ BOOLEAN VbEngineConfAlignBlackListIsMacAllowed(INT8U *targetMac, INT8U *macToChe
  **/
 BOOLEAN VbEngineConfAlignBlackListIsEnabled(void);
 
-BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetectBands, INT16U *freqTolerance, INT8U *thr);
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetectBands, INT16U **freqTolerance, INT8U *thr);
 
 BOOLEAN VbEnginePSDShapeConfGetShapeParams(INT16U **PSDShape_freqs, INT16U **PSDShape_attLevel, int *nbShapes);
 

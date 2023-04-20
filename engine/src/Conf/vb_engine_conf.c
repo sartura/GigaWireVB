@@ -213,8 +213,8 @@ typedef struct s_persistentLog
 typedef struct s_VDSLSearchParams
 {
   INT16U                    freqs[16];
+  INT16U                    freqTolerance[16];
   INT8U                     nbDetectBands;
-  INT16U                    freqTolerance;
   INT8U                     threshold;
 } t_VDSLSearchParams;
 
@@ -1212,6 +1212,7 @@ static t_VB_engineErrorCode VbEngineVDSLParse( ezxml_t vDSLConf )
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
   ezxml_t              ez_temp;
   ezxml_t              ez_freq;
+  ezxml_t              ez_tolerance;
 
   ez_temp = ezxml_child(vDSLConf, "Threshold");
 
@@ -1246,28 +1247,12 @@ static t_VB_engineErrorCode VbEngineVDSLParse( ezxml_t vDSLConf )
 
   if (ret == VB_ENGINE_ERROR_NONE)
   {
-    ez_temp = ezxml_child(vDSLConf, "FrequencyTolerance");
-
-    if ((ez_temp != NULL) && (ez_temp->txt != NULL))
-    {
-      errno = 0;
-      vbEngineConf.vDSLSearchParams.freqTolerance = strtoul(ez_temp->txt, NULL, 0);
-
-      if (errno != 0)
-      {
-        printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/FrequencyTolerance value\n", errno, strerror(errno));
-        ret = VB_ENGINE_ERROR_INI_FILE;
-      }
-    }
-  }
-
-  if (ret == VB_ENGINE_ERROR_NONE)
-  {
     ez_temp = ezxml_child(vDSLConf, "Frequencies");
 
     if ((ez_temp != NULL) && (ez_temp->txt != NULL))
     {
       int i = 0;
+
       for (ez_freq = ezxml_child(ez_temp, "Frequency"); ez_freq != NULL; ez_freq = ez_freq->next)
       {
         if (i >= 16)
@@ -1285,6 +1270,26 @@ static t_VB_engineErrorCode VbEngineVDSLParse( ezxml_t vDSLConf )
       if (i < 16)
       {
         vbEngineConf.vDSLSearchParams.freqs[i] = 0;
+      }
+
+      i = 0;
+      for (ez_tolerance = ezxml_child(ez_temp, "FreqTolerance"); ez_tolerance != NULL; ez_tolerance = ez_tolerance->next)
+      {
+        if (i >= 16)
+          break;
+
+        errno = 0;
+        vbEngineConf.vDSLSearchParams.freqTolerance[i++] = strtoul(ez_tolerance->txt, NULL, 0);
+
+        if (errno != 0)
+        {
+          printf("ERROR (%d:%s) parsing .ini file: Invalid vDSL/Frequencies/FreqTolerance[%d] value\n", errno, strerror(errno), i-1);
+          ret = VB_ENGINE_ERROR_INI_FILE;
+        }
+      }
+      if (i < 16)
+      {
+        vbEngineConf.vDSLSearchParams.freqTolerance[i] = 0;
       }
     }
   }
@@ -1421,14 +1426,13 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   vbEngineConf.persistentLog.circular          = VB_ENGINE_CONF_DEFAULT_PERSLOG_CIRCULAR;
 
   vbEngineConf.vDSLSearchParams.threshold      = 12;
-  vbEngineConf.vDSLSearchParams.freqTolerance  = 725;
   vbEngineConf.vDSLSearchParams.nbDetectBands  = 2;
   vbEngineConf.vDSLSearchParams.freqs[0]       = 4475;
   vbEngineConf.vDSLSearchParams.freqs[1]       = 9950;
-  vbEngineConf.vDSLSearchParams.freqs[2]       = 7800;
-  vbEngineConf.vDSLSearchParams.freqs[3]       = 8500;
-  vbEngineConf.vDSLSearchParams.freqs[4]       = 12000;
-  vbEngineConf.vDSLSearchParams.freqs[5]       = 0;
+  vbEngineConf.vDSLSearchParams.freqs[2]       = 0;
+  vbEngineConf.vDSLSearchParams.freqTolerance[0] = 725;
+  vbEngineConf.vDSLSearchParams.freqTolerance[1] = 1750;
+  vbEngineConf.vDSLSearchParams.freqTolerance[2] = 0;
 
   vbEngineConf.PSDShapeParams.freqs[0]         = 0;
   vbEngineConf.PSDShapeParams.attLevel[0]      = 0;
@@ -2042,12 +2046,11 @@ void VbEngineConfDump(t_writeFun writeFun)
 
   writeFun("| %-48s | %28u |\n",               "vDSLSearch - number of bands to detect", vbEngineConf.vDSLSearchParams.nbDetectBands);
   writeFun("| %-48s | %28u |\n",               "vDSLSearch - threshold",          vbEngineConf.vDSLSearchParams.threshold);
-  writeFun("| %-48s | %28u |\n",               "vDSLSearch - frequency tolerance",vbEngineConf.vDSLSearchParams.freqTolerance);
   for(i = 0; i < 16; i++)
   {
     if (vbEngineConf.vDSLSearchParams.freqs[i] == 0)
       break;
-    writeFun("| %-44s (%1u) | %28u |\n",       "vDSL search bands - Band", i, vbEngineConf.vDSLSearchParams.freqs[i]);
+    writeFun("| %-44s (%1u) | %14u | %14u\n",       "vDSL search bands - Band", i, vbEngineConf.vDSLSearchParams.freqs[i], vbEngineConf.vDSLSearchParams.freqTolerance[i]);
   }
 
   for(i = 0; i < 10; i++)
@@ -2662,12 +2665,12 @@ BOOLEAN VbEngineConfAlignBlackListIsEnabled(void)
 
 /*******************************************************************/
 
-BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT16U *freqTolerance, INT8U *thr)
+BOOLEAN VbEngineConfVDSLGetSearchParams(INT16U **vDSL_SearchFreqs, int *nbSearchFreqs, int *nbDetect, INT16U **freqTolerance, INT8U *thr)
 {
   *vDSL_SearchFreqs = &vbEngineConf.vDSLSearchParams.freqs[0];
   *nbSearchFreqs = sizeof(vbEngineConf.vDSLSearchParams.freqs) / sizeof(vbEngineConf.vDSLSearchParams.freqs[0]);
   *nbDetect = vbEngineConf.vDSLSearchParams.nbDetectBands;
-  *freqTolerance = vbEngineConf.vDSLSearchParams.freqTolerance;
+  *freqTolerance = &vbEngineConf.vDSLSearchParams.freqTolerance[0];
   *thr = vbEngineConf.vDSLSearchParams.threshold;
 
   return TRUE;

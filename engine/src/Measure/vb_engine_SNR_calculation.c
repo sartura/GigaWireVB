@@ -650,8 +650,8 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
                               const t_processMeasure *bgnMeasure)
 {
   INT16U *vDSL_searchFreqs;
+  INT16U *freqTolerance;
   int nbSearchedFreqs;
-  INT16U freqTolerance;
   INT8U threshold;
   BOOL detected = FALSE;
   int nb_detected = 0;
@@ -670,8 +670,8 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
     }
     else
     {
-      int idx_start = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] - freqTolerance, bgnMeasure->spacing));
-      int idx_end   = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] + freqTolerance, bgnMeasure->spacing));
+      int idx_start = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] - freqTolerance[i], bgnMeasure->spacing));
+      int idx_end   = MAX(0, FREQ2GRIDCARRIERIDX(vDSL_searchFreqs[i] + freqTolerance[i], bgnMeasure->spacing));
       int sum = 0;
 
       for (int idx = idx_start; idx <= idx_end && idx < bgnMeasure->numMeasures; idx++)
