@@ -1443,8 +1443,8 @@ static t_VB_engineErrorCode VbEngineConfFileRead(const char *path)
   vbEngineConf.persistentLog.verboseLevel      = VB_ENGINE_CONF_DEFAULT_PERSLOG_VERBOSE;
   vbEngineConf.persistentLog.circular          = VB_ENGINE_CONF_DEFAULT_PERSLOG_CIRCULAR;
 
-  vbEngineConf.vDSLSearchParams.threshold      = 70;
-  vbEngineConf.vDSLSearchParams.stddev         = 12;
+  vbEngineConf.vDSLSearchParams.threshold      = 35;
+  vbEngineConf.vDSLSearchParams.stddev         = 25;
   vbEngineConf.vDSLSearchParams.nbDetectBands  = 2;
   vbEngineConf.vDSLSearchParams.freqs[0]       = 4475;
   vbEngineConf.vDSLSearchParams.freqs[1]       = 10250;

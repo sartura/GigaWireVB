@@ -699,7 +699,7 @@ static BOOL VbVDSLDeviceProbe(t_VBDriver *driver,
   }
 
   VbLogPrintExt(VB_LOG_INFO, driver->vbDriverID, "Number of detected VDSL bands: %d >= %d", nb_detected, nbDetect);
-  detected = nb_detected >= nbDetect ? TRUE : FALSE;
+  detected = (nb_detected >= nbDetect) ? TRUE : FALSE;
 
   return detected;
 }
