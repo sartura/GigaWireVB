@@ -165,7 +165,7 @@
 
 /*******************************************************************/
 
-static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChannelSettings *nodeChannelSettings)
+static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChannelSettings *nodeChannelSettings, INT8U nBands)
 {
   t_VB_engineErrorCode result = VB_ENGINE_ERROR_NONE;
   t_psdShape *psd;
@@ -184,17 +184,19 @@ static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChan
       {
         result = VB_ENGINE_ERROR_PARAMS;
       }
-      else if (nodeChannelSettings->boostInfo.level != nbShapes)
+      else if (nodeChannelSettings->boostInfo.level != nBands)
       {
-        nodeChannelSettings->boostInfo.level = nbShapes;
-        nodeChannelSettings->boostInfo.perc = IN_PERC(freqs[0], freqs[nbShapes-1]);
+        nodeChannelSettings->boostInfo.level = nBands;
+        nodeChannelSettings->boostInfo.perc = 100;
         psd->sendUpdate = TRUE;
-        psd->numPSDBands = nbShapes;
+        psd->numPSDBands = nbShapes + 1;
         for (int i = 0; i < nbShapes; i++)
         {
           psd->psdBandLevel[i].attLevel = attLevel[i];
           psd->psdBandLevel[i].stopCarrier = MAX(0, FREQ2GRIDCARRIERIDX(freqs[i], 1));
         }
+        psd->psdBandLevel[nbShapes].attLevel = 100;
+        psd->psdBandLevel[nbShapes].stopCarrier = VB_LAST_CARRIER_IDX;
       }
     }
   }
@@ -330,7 +332,7 @@ t_VB_engineErrorCode VbEngineLeftToRightPSDShapeRun(t_VBDriver *driver, t_domain
 
       if (driver->vDSLpresent == TRUE)
       {
-        ret = VbChannelCapacityPSDNBandsSetCustomShape(&(node->channelSettings));
+        ret = VbChannelCapacityPSDNBandsSetCustomShape(&(node->channelSettings), node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos]);
         if (ret != VB_ENGINE_ERROR_NONE)
         {
           VbLogPrintExt(VB_LOG_ERROR, driver->vbDriverID, "Error %d Setting PSD Bands for node %s", ret, node->MACStr);
