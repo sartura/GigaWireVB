@@ -889,6 +889,11 @@ static t_VB_engineErrorCode VbSnrCalculateNodeLoopCb(t_VBDriver *driver, t_domai
         {
           bgn_meas_is_valid = VbMeasureIsValid(plan_id, &(node->measures.BGNMeasure));
 
+          if (driver && (bgn_meas_is_valid == FALSE))
+          {
+            driver->vDSLpresent = FALSE;
+          }
+
           if (bgn_meas_is_valid == TRUE)
           {
             first_carrier = node->measures.BGNMeasure.firstCarrier;
