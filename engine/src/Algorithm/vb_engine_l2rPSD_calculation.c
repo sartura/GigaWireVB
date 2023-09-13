@@ -129,6 +129,7 @@
        psd->sendUpdate = TRUE;
        nodeChannelSettings->boostInfo.level = nBands;
        nodeChannelSettings->boostInfo.perc = IN_PERC(psdBandAllocation->lastCarrier[nBands-1], psdBandAllocation->lastCarrier[nodeChannelSettings->boostInfo.maxNumBands-1]);
+       VbLogPrintExt(VB_LOG_INFO, VB_ENGINE_ALL_DRIVERS_STR, "BOOST percent == %d", nodeChannelSettings->boostInfo.perc);
        if(nBands >= nodeChannelSettings->boostInfo.maxNumBands)
        {
          // All bands used -> Full Band Full power
@@ -165,7 +166,7 @@
 
 /*******************************************************************/
 
-static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChannelSettings *nodeChannelSettings, INT8U nBands)
+static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChannelSettings *nodeChannelSettings, INT8U nBands, t_psdBandAllocation *psdBandAllocation)
 {
   t_VB_engineErrorCode result = VB_ENGINE_ERROR_NONE;
   t_psdShape *psd;
@@ -186,17 +187,37 @@ static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSetCustomShape(t_nodeChan
       }
       else if (nodeChannelSettings->boostInfo.level != nBands)
       {
+        int lastCarrier = psdBandAllocation->lastCarrier[nBands-1];
         nodeChannelSettings->boostInfo.level = nBands;
-        nodeChannelSettings->boostInfo.perc = 100;
+        nodeChannelSettings->boostInfo.perc = IN_PERC(psdBandAllocation->lastCarrier[nBands-1], psdBandAllocation->lastCarrier[nBands-1]);
+        VbLogPrintExt(VB_LOG_INFO, VB_ENGINE_ALL_DRIVERS_STR, "BOOST percent == %d NBANDS %d", nodeChannelSettings->boostInfo.perc, nBands);
         psd->sendUpdate = TRUE;
-        psd->numPSDBands = nbShapes + 1;
+        psd->numPSDBands = 0;
         for (int i = 0; i < nbShapes; i++)
         {
-          psd->psdBandLevel[i].attLevel = attLevel[i];
-          psd->psdBandLevel[i].stopCarrier = MAX(0, FREQ2GRIDCARRIERIDX(freqs[i], 1));
+          int freq_idx = MAX(0, FREQ2ABSOLUTECARRIERIDX(freqs[i]));
+          if (freq_idx < lastCarrier)
+          {
+            psd->psdBandLevel[psd->numPSDBands].attLevel = attLevel[i];
+            psd->psdBandLevel[psd->numPSDBands].stopCarrier = freq_idx;
+            psd->numPSDBands++;
+          }
+          else
+          {
+            if (nBands >= nodeChannelSettings->boostInfo.maxNumBands)
+            {
+              psd->psdBandLevel[psd->numPSDBands].attLevel = VB_ENGINE_PSD_FULL_POWER;
+              psd->psdBandLevel[psd->numPSDBands].stopCarrier = lastCarrier;
+            }
+            else
+            {
+              psd->psdBandLevel[psd->numPSDBands].attLevel = VB_ENGINE_PSD_NO_POWER;
+              psd->psdBandLevel[psd->numPSDBands].stopCarrier = lastCarrier;
+            }
+            psd->numPSDBands++;
+            break;
+          }
         }
-        psd->psdBandLevel[nbShapes].attLevel = 100;
-        psd->psdBandLevel[nbShapes].stopCarrier = VB_LAST_CARRIER_IDX;
       }
     }
   }
@@ -332,7 +353,7 @@ t_VB_engineErrorCode VbEngineLeftToRightPSDShapeRun(t_VBDriver *driver, t_domain
 
       if (driver->vDSLpresent == TRUE)
       {
-        ret = VbChannelCapacityPSDNBandsSetCustomShape(&(node->channelSettings), node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos]);
+        ret = VbChannelCapacityPSDNBandsSetCustomShape(&(node->channelSettings), node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos], psd_l2r_args->psdBandsAllocation );
         if (ret != VB_ENGINE_ERROR_NONE)
         {
           VbLogPrintExt(VB_LOG_ERROR, driver->vbDriverID, "Error %d Setting PSD Bands for node %s", ret, node->MACStr);
