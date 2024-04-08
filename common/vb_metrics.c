@@ -1331,24 +1331,13 @@ void VbMetricsPrintEventsList(t_VBMetricsEventType type,  void (*write_fun)(cons
 
 void VbMetricsDumpAllEventsList(void (*write_fun)(const char *fmt, ...))
 {
-  INT32U i, j, count, tmp_index;
-  INT32U buffer_start_index;
+  INT32U i, j, count;
   BOOL   metrics_running;
   t_VBMetricsTimeMarker *values;
 
   metrics_running = vbMetricsRunning;
   // Avoid modifications on the list while we are printing
   VbStopMetrics();
-
-  if((vbMetricsIndexOverflow == 1) &&
-    (vbMetricsBufferMode == EVENTS_BUFF_CIRCULAR))
-  {
-    buffer_start_index = vbMetricsCurrentWrIndex;
-  }
-  else
-  {
-    buffer_start_index = 0;
-  }
 
   write_fun("\nMetrics internal buffer contents");
   write_fun("\n---------------------------------\n");
@@ -1363,9 +1352,6 @@ void VbMetricsDumpAllEventsList(void (*write_fun)(const char *fmt, ...))
   pthread_mutex_lock( &vbMetricsEventsListMutex );
   for(i=0; i<vbMetricsListLength; i++)
   {
-    tmp_index = buffer_start_index + i;
-    tmp_index %= vbMetricsListLength;
-
     if(vbMetricsEventsList[i].eventType == VB_METRICS_EVENT_CLOSE)
     {
       continue;
