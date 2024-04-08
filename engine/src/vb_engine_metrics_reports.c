@@ -193,7 +193,7 @@ static BOOL VbMetricsCheckEnoughSpaceForMetrics(void)
   struct dirent *dir;
   struct stat    st;
   CHAR           dir_path[VB_ENGINE_METRICS_MAX_PATH_LEN];
-  CHAR           file_path[2 * VB_ENGINE_METRICS_MAX_PATH_LEN];
+  CHAR           file_path[2 * VB_ENGINE_METRICS_MAX_PATH_LEN + 1];
   INT32U         space;
   BOOL           res;
 
@@ -221,7 +221,7 @@ static BOOL VbMetricsCheckEnoughSpaceForMetrics(void)
         }
         //Compose path and file names
         strcpy(file_path, dir_path);
-        strncat(file_path, dir->d_name, VB_ENGINE_METRICS_MAX_PATH_LEN - 1);
+        strncat(file_path, dir->d_name, sizeof(file_path) - 1);
 
         if (stat(file_path, &st) == 0)
         {
