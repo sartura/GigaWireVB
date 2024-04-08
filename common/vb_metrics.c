@@ -84,6 +84,7 @@
  */
 
 #define VB_METRICS_MAX_NR_REPORTS      (16)
+#define VB_METRICS_FIXED_NAME_SIZE     (44)
 #define VB_METRICS_OUTPUT_FOLDER       "%s/Metrics_%04d-%02d-%02d/"
 #define VB_METRICS_MSGQ_SIZE           (200)
 #define VB_METRICS_DEFAULT_BUFFER_MODE EVENTS_BUFF_CIRCULAR
@@ -155,7 +156,7 @@ static t_VB_MetricsReport vbMetricsReportsList[VB_METRICS_MAX_NR_REPORTS];
 // Array used to calculate average time values of high frequent events
 static t_VBMetricsTimeMarker vbMetricsTimeMarkersList[VB_METRICS_MAX_NR_TIME_MARKERS];
 
-static CHAR  vbMetricsCurrentPath[VB_ENGINE_METRICS_MAX_PATH_LEN]; // this path is re-generated with Start
+static CHAR  vbMetricsCurrentPath[VB_ENGINE_METRICS_MAX_PATH_LEN+VB_METRICS_FIXED_NAME_SIZE]; // this path is re-generated with Start
 static CHAR  vbOutputPath[VB_ENGINE_METRICS_MAX_PATH_LEN]; // engine reports path
 
 static pthread_mutex_t vbMetricsEventsListMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -838,7 +839,7 @@ void VbStartMetrics(void)
     localtime_r(&(vbMetricsStartupTime.tv_sec), &tmu);
     snprintf(
         vbMetricsCurrentPath,
-        (VB_ENGINE_METRICS_MAX_PATH_LEN-1),
+        sizeof(vbMetricsCurrentPath)-1,
         VB_METRICS_OUTPUT_FOLDER,
         vbOutputPath,
         tmu.tm_year + 1900, tmu.tm_mon + 1, tmu.tm_mday
