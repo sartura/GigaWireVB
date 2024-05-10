@@ -1498,28 +1498,13 @@ t_HGF_LCMP_ErrorCode LcmpExecute( void )
   return result;
 }
 
-#define SWAP(type, x, y) \
-do { \
-  type t = x; \
-  x = y; \
-  y = t; \
-} while (0)
-
-static void endian4_transform(INT8U *io, const unsigned size)
-{
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  for (unsigned n = 0; n < size; n += 4) {
-    SWAP(INT8U, io[0], io[3]);
-    SWAP(INT8U, io[1], io[2]);
-  }
-#endif
-}
-
 /*******************************************************************/
 
 static t_HGF_LCMP_ErrorCode LcmpHeaderBuild(INT32U length, t_LCMP_OPCODE opcode, INT32U numSegments, INT32U segmNumber, t_MMH *mmh)
 {
   t_HGF_LCMP_ErrorCode ret = HGF_LCMP_ERROR_NONE;
+  void *mmh_ptr = NULL;
+  INT32U temp_field_endianness;
 
   if (mmh == NULL)
   {
@@ -1538,7 +1523,15 @@ static t_HGF_LCMP_ErrorCode LcmpHeaderBuild(INT32U length, t_LCMP_OPCODE opcode,
     mmh->fsb = 1; // Force start of sequence to consider all vectorboost LCMP messages as "NEW"
 
     // Apply endianness transformation to MMH (2 words)
-    endian4_transform((INT8U *)mmh, sizeof(*mmh));
+    mmh_ptr = mmh;
+    memcpy(&temp_field_endianness, mmh_ptr, sizeof(INT32U));
+    temp_field_endianness = _htonl_ghn(temp_field_endianness);
+    memcpy(mmh_ptr, &temp_field_endianness, sizeof(INT32U));
+
+    memcpy(&temp_field_endianness, mmh_ptr+4, sizeof(INT32U));
+    temp_field_endianness = _htonl_ghn(temp_field_endianness);
+    memcpy(mmh_ptr+4, &temp_field_endianness, sizeof(INT32U));
+    // End of apply endianness transformation
   }
 
   return ret;
