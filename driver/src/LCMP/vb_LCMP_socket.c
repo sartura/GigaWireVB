@@ -1227,7 +1227,7 @@ void *LcmpReceiveThread(void *arg)
   struct timeval tv;
   fd_set rfds;
   INT32U temp_field_endianness;
-  INT32U *mmh_ptr = NULL;
+  INT8U *mmh_ptr = NULL;
 
   if(lcmpSc == -1)
   {
@@ -1270,13 +1270,15 @@ void *LcmpReceiveThread(void *arg)
             srcMac = &buffer[SRCMACOFFSET];
 
             // Apply endianness transformation to MMH (2 words)
-            mmh_ptr = (INT32U*)&buffer[MMH_OFFSET];
+            mmh_ptr = (INT8U*)&buffer[MMH_OFFSET];
 
-            temp_field_endianness = _ntohl_ghn(*mmh_ptr);
-            *mmh_ptr = temp_field_endianness;
+            memcpy(&temp_field_endianness, mmh_ptr, sizeof(INT32U));
+            temp_field_endianness = _ntohl_ghn(temp_field_endianness);
+            memcpy(mmh_ptr, &temp_field_endianness, sizeof(INT32U));
 
-            temp_field_endianness = _ntohl_ghn(*(mmh_ptr + 1));
-            *(mmh_ptr + 1) = temp_field_endianness;
+            memcpy(&temp_field_endianness, mmh_ptr+4, sizeof(INT32U));
+            temp_field_endianness = _ntohl_ghn(temp_field_endianness);
+            memcpy(mmh_ptr+4, &temp_field_endianness, sizeof(INT32U));
             // End of apply endianness transformation
 
             mmh         = (t_MMH *)&buffer[MMH_OFFSET];
