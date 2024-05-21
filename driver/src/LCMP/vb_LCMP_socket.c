@@ -1503,7 +1503,7 @@ t_HGF_LCMP_ErrorCode LcmpExecute( void )
 static t_HGF_LCMP_ErrorCode LcmpHeaderBuild(INT32U length, t_LCMP_OPCODE opcode, INT32U numSegments, INT32U segmNumber, t_MMH *mmh)
 {
   t_HGF_LCMP_ErrorCode ret = HGF_LCMP_ERROR_NONE;
-  void *mmh_ptr = NULL;
+  INT8U *mmh_ptr = NULL;
   INT32U temp_field_endianness;
 
   if (mmh == NULL)
@@ -1523,7 +1523,7 @@ static t_HGF_LCMP_ErrorCode LcmpHeaderBuild(INT32U length, t_LCMP_OPCODE opcode,
     mmh->fsb = 1; // Force start of sequence to consider all vectorboost LCMP messages as "NEW"
 
     // Apply endianness transformation to MMH (2 words)
-    mmh_ptr = mmh;
+    mmh_ptr = (INT8U *)mmh;
     memcpy(&temp_field_endianness, mmh_ptr, sizeof(INT32U));
     temp_field_endianness = _htonl_ghn(temp_field_endianness);
     memcpy(mmh_ptr, &temp_field_endianness, sizeof(INT32U));
