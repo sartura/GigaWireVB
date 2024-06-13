@@ -1591,7 +1591,7 @@ static t_VB_engineErrorCode VbEngineConsoleBoostReportDomainsCb(t_VBDriver *driv
 {
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
   t_consoleLoopArgs   *loop_args = (t_consoleLoopArgs *)args;
-  char                *boost_mode_strs[VB_ENGINE_BOOST_MODE_LAST] = {"AUTO", "FORCED FULL", "FORCED LOW"};
+  char                *boost_mode_strs[VB_ENGINE_BOOST_MODE_LAST] = {"AUTO", "FORCED FULL", "FORCED LOW", "FORCED ITERATIVE"};
   char                *boost_mode = NULL;
   t_node              *ep = NULL;
 
@@ -2965,6 +2965,10 @@ static BOOL VbEngineConsoleForceBoostMode(void *arg, t_writeFun writeFun, char *
       else if (!strcmp(cmd[2], "l"))
       {
         boost_mode = VB_ENGINE_BOOST_MODE_FORCED_LOW;
+      }
+      else if (!strcmp(cmd[2], "i"))
+      {
+        boost_mode = VB_ENGINE_BOOST_MODE_FORCED_ITERATIVE;
       }
       else
       {

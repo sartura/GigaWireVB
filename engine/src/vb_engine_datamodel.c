@@ -51,6 +51,8 @@
  */
 
 #include "types.h"
+#include <float.h>
+#include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -67,6 +69,7 @@
 #include "vb_timer.h"
 #include "vb_engine_metrics_reports.h"
 #include "vb_engine_drivers_list.h"
+#include "vb_engine_SNR_calculation.h"
 
 /*
  ************************************************************************
@@ -129,6 +132,8 @@ static const CHAR *qosRateString[VB_ENGINE_QOS_RATE_LAST] =
 /// Timers mutex
 static pthread_mutex_t vbEngineTimersMutex;
 
+static pthread_mutex_t vbNodesPSDMutex;
+
 /*
  ************************************************************************
  ** Private function definition
@@ -161,7 +166,11 @@ static void VbEngineDatamodelNodeDestroy(t_node *node)
 {
   if (node != NULL)
   {
+    pthread_mutex_lock(&vbNodesPSDMutex);
+
     VbDatamodelNodeMeasuresDestroy(&(node->measures));
+
+    pthread_mutex_unlock(&vbNodesPSDMutex);
   }
 }
 
@@ -204,6 +213,28 @@ static void VbDatamodelNodePsdDestroy( t_PSD *psd )
 
 /*******************************************************************/
 
+static void VbDatamodelNodePowerDestroy( t_lastPower *power )
+{
+  if (power != NULL)
+  {
+    free(power->Power);
+    power->Power = NULL;
+  }
+}
+
+/*******************************************************************/
+
+static void VbDatamodelNodeBitLoadDestroy( t_lastBitLoad *bitload )
+{
+  if (bitload != NULL)
+  {
+    free(bitload->BitLoad);
+    bitload->BitLoad = NULL;
+  }
+}
+
+/*******************************************************************/
+
 static void VbDatamodelNodeMeasuresDestroy( t_nodeMeasures *nodeMeasures )
 {
   VbDatamodelNodeProcessMeasureDestroy(&nodeMeasures->BGNMeasure);
@@ -212,6 +243,9 @@ static void VbDatamodelNodeMeasuresDestroy( t_nodeMeasures *nodeMeasures )
   VbDatamodelNodeProcessMeasureDestroy(&nodeMeasures->snrFullXtalk);
   VbDatamodelNodeProcessMeasureDestroy(&nodeMeasures->snrLowXtalk);
   VbDatamodelNodePsdDestroy(&nodeMeasures->Psd);
+  VbDatamodelNodePowerDestroy(&nodeMeasures->Power);
+  VbDatamodelNodeBitLoadDestroy(&nodeMeasures->BitLoad);
+  VbDatamodelNodeBitLoadDestroy(&nodeMeasures->prevBitLoad);
 }
 
 /*******************************************************************/
@@ -448,6 +482,38 @@ static t_VB_engineErrorCode NumNodesLoopCb(t_VBDriver *driver, t_domain *domain,
 
 /*******************************************************************/
 
+static t_VB_engineErrorCode NodeListInsert(t_node *node, t_nodesList *nodesList)
+{
+  t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+
+  if ((node == NULL) || (nodesList == NULL))
+  {
+    ret = VB_ENGINE_ERROR_BAD_ARGUMENTS;
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    if (node->type == VB_NODE_DOMAIN_MASTER)
+    {
+      if (nodesList->nodes == NULL)
+      {
+        ret = VB_ENGINE_ERROR_MALLOC;
+      }
+
+      if (ret == VB_ENGINE_ERROR_NONE)
+      {
+
+        nodesList->nodes[nodesList->numNodes] = node;
+        nodesList->numNodes++;
+      }
+    }
+  }
+
+  return ret;
+}
+
+/*******************************************************************/
+
 static t_VB_engineErrorCode NodeMACListInsert(t_node *node, t_nodesMacList *macList)
 {
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
@@ -511,6 +577,30 @@ static t_VB_engineErrorCode NodesMACListCb(t_VBDriver *driver, t_domain *domain,
   {
     // Insert MAC in list
     ret = NodeMACListInsert(node, mac_list);
+  }
+
+  return ret;
+}
+
+/*******************************************************************/
+
+static t_VB_engineErrorCode CompleteLinesNodesListCb(t_VBDriver *driver, t_domain *domain, t_node *node, void *args)
+{
+  t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+  t_nodesList  *nodes_list = (t_nodesList *)args;
+
+  if ((node == NULL) || (domain == NULL) || (nodes_list == NULL))
+  {
+    ret = VB_ENGINE_ERROR_BAD_ARGUMENTS;
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    if (VbEngineDatamodelDomainIsComplete(domain) == TRUE)
+    {
+      // Insert Node in list
+      ret = NodeListInsert(node, nodes_list);
+    }
   }
 
   return ret;
@@ -1889,6 +1979,67 @@ t_VB_engineErrorCode VbEngineDatamodelAllNodesMacGet(t_nodesMacList *macList, BO
 
 /*******************************************************************/
 
+t_VB_engineErrorCode VbEngineDatamodelClusterXAllCompleteLinesGet(t_nodesList *nodesList, INT32U clusterId)
+{
+  t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
+  t_vbEngineNumNodes   num_nodes;
+  t_node **nodes = NULL;
+
+  bzero(&num_nodes, sizeof(num_nodes));
+
+  if (nodesList == NULL)
+  {
+    ret = VB_ENGINE_ERROR_BAD_ARGUMENTS;
+  }
+  else
+  {
+    // Init field
+    nodesList->numNodes = 0;
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    // Get number of nodes
+    ret = VbEngineDataModelNumNodesInClusterXGet(clusterId, &num_nodes);
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    // Allocate memory for List of Nodes
+    if (num_nodes.numCompleteLines > 0)
+    {
+      nodes = (t_node**)calloc(num_nodes.numCompleteLines, sizeof(*nodes));
+      if (nodes == NULL)
+      {
+        ret = VB_ENGINE_ERROR_MALLOC;
+      }
+    }
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    // Init fields
+    nodesList->nodes = nodes;
+
+    if (nodesList->nodes != NULL)
+    {
+      ret = VbEngineDatamodelClusterXAllNodesLoop(CompleteLinesNodesListCb, clusterId, (void *)nodesList);
+    }
+  }
+
+  if (ret != VB_ENGINE_ERROR_NONE)
+  {
+    if (nodes != NULL)
+    {
+      free(nodes);
+    }
+  }
+
+  return ret;
+}
+
+/*******************************************************************/
+
 t_VB_engineErrorCode VbEngineDatamodelClusterXAllNodesMacGet(t_nodesMacList *macList, BOOLEAN onlyCompleteLines, INT32U clusterId)
 {
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
@@ -2557,6 +2708,341 @@ t_VB_engineErrorCode VbEngineSeedIndexByMacSet(INT8U *nodeMac, INT16U seedIndex,
   return ret;
 }
 
+static FLOAT bitLoadingForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users, FLOAT add)
+{
+  t_node *user_node = nodes[user];
+  FLOAT *userPowers = user_node->measures.Power.Power;
+  FLOAT num, den = 0.f;
+  INT16U i;
+
+  if (tone >= user_node->measures.Power.numPowers)
+  {
+    return 0.f;
+  }
+
+  num = userPowers[tone] + add;
+
+  for (i = 0; i < nb_users; i++)
+  {
+    t_node *node;
+
+    if (i == user)
+    {
+      continue;
+    }
+
+    node = nodes[i];
+
+    if (tone >= node->measures.Power.numPowers)
+    {
+      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
+      continue;
+    }
+
+    den += node->measures.Power.Power[tone];
+  }
+  if (tone < user_node->measures.BGNMeasure.numMeasures)
+  {
+    den += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
+  }
+
+  den *= powf(10.f, 12.6f/10.f);
+
+  return log2f(1.f+num/den);
+}
+
+static FLOAT aFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users)
+{
+  t_node *user_node = nodes[user];
+  FLOAT *userPowers = user_node->measures.Power.Power;
+  FLOAT sum = 0.f;
+  INT16U i;
+
+  if (tone >= user_node->measures.Power.numPowers)
+  {
+    return 0.f;
+  }
+
+  for (i = 0; i < nb_users; i++)
+  {
+    t_node *node;
+
+    if (i == user)
+    {
+      continue;
+    }
+
+    node = nodes[i];
+
+    if (tone >= node->measures.Power.numPowers)
+    {
+      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
+      continue;
+    }
+
+    sum += node->measures.Power.Power[tone];
+  }
+
+  if (tone < user_node->measures.BGNMeasure.numMeasures)
+  {
+    sum += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
+  }
+
+  sum *= powf(10.f, 12.6f/10.f);
+
+  sum += userPowers[tone];
+
+  return sum;
+}
+
+static FLOAT bFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users)
+{
+  FLOAT sum = 0.f;
+  INT16U i;
+
+  for (i = 0; i < nb_users; i++)
+  {
+    t_node *node;
+
+    if (i == user)
+    {
+      continue;
+    }
+
+    node = nodes[i];
+
+    if (tone >= node->measures.BitLoad.numBitLoads ||
+        tone >= node->measures.prevBitLoad.numBitLoads)
+    {
+      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d/%d", tone,
+                    node->measures.BitLoad.numBitLoads, node->measures.prevBitLoad.numBitLoads);
+      continue;
+    }
+
+    sum += node->measures.BitLoad.BitLoad[tone] - node->measures.prevBitLoad.BitLoad[tone];
+  }
+
+  return sum;
+}
+
+static FLOAT iterationFunction(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users)
+{
+  FLOAT A, B;
+
+  A = aFactorForUserAndTone(nodes, user, tone, nb_users);
+  B = bFactorForUserAndTone(nodes, user, tone, nb_users);
+
+  return 1.f/A+B;
+}
+
+/*******************************************************************/
+
+t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
+{
+  t_VB_engineErrorCode   ret = VB_ENGINE_ERROR_NONE;
+  t_nodesList nodesList = {0};
+
+  pthread_mutex_lock(&vbNodesPSDMutex);
+
+  if (ret == VB_ENGINE_ERROR_NONE)
+  {
+    ret = VbEngineDatamodelClusterXAllCompleteLinesGet(&nodesList, clusterId);
+  }
+
+  if (ret == VB_ENGINE_ERROR_NONE && nodesList.numNodes > 1)
+  {
+    INT16U i, nb_users;
+
+    nb_users = nodesList.numNodes;
+    for (i = 0; i < nb_users; i++)
+    {
+      t_node *node = nodesList.nodes[i];
+      INT16U numTones = node->measures.Power.numPowers ? node->measures.Power.numPowers : node->measures.BGNMeasure.numMeasures;
+
+      if (numTones == 0)
+      {
+        continue;
+      }
+
+      if (node->measures.Power.numPowers < numTones)
+      {
+        FLOAT *Power, init_value;
+        INT16U j;
+
+        free(node->measures.Power.Power);
+        node->measures.Power.Power = Power = (FLOAT *)calloc(numTones, sizeof(FLOAT));
+        if (node->measures.Power.Power == NULL)
+        {
+          ret = VB_ENGINE_ERROR_MALLOC;
+          break;
+        }
+
+        node->measures.Power.numPowers = numTones;
+        init_value = powf(10.f, 4.f/10.f)/numTones;
+        for (j = 0; j < numTones; j++)
+        {
+          Power[j] = init_value;
+        }
+      }
+
+      if (node->measures.prevBitLoad.numBitLoads < numTones)
+      {
+        free(node->measures.prevBitLoad.BitLoad);
+        node->measures.prevBitLoad.BitLoad = (FLOAT *)calloc(numTones, sizeof(FLOAT));
+        if (node->measures.prevBitLoad.BitLoad == NULL)
+        {
+          node->measures.prevBitLoad.numBitLoads = 0;
+          ret = VB_ENGINE_ERROR_MALLOC;
+          break;
+        }
+
+        node->measures.prevBitLoad.numBitLoads = numTones;
+      }
+
+      if (node->measures.BitLoad.numBitLoads < numTones)
+      {
+        free(node->measures.BitLoad.BitLoad);
+        node->measures.BitLoad.BitLoad = (FLOAT *)calloc(numTones, sizeof(FLOAT));
+        if (node->measures.BitLoad.BitLoad == NULL)
+        {
+          node->measures.BitLoad.numBitLoads = 0;
+          ret = VB_ENGINE_ERROR_MALLOC;
+          break;
+        }
+
+        node->measures.BitLoad.numBitLoads = numTones;
+      }
+
+      if (node->measures.BitLoad.BitLoad != NULL &&
+          node->measures.prevBitLoad.BitLoad != NULL)
+      {
+        INT16U numBitLoads = node->measures.prevBitLoad.numBitLoads;
+        FLOAT *BitLoad = node->measures.prevBitLoad.BitLoad;
+
+        node->measures.prevBitLoad.numBitLoads = node->measures.BitLoad.numBitLoads;
+        node->measures.prevBitLoad.BitLoad = node->measures.BitLoad.BitLoad;
+        node->measures.BitLoad.numBitLoads = numBitLoads;
+        node->measures.BitLoad.BitLoad = BitLoad;
+      }
+    }
+
+    if (ret == VB_ENGINE_ERROR_NONE)
+    {
+      const FLOAT max_power = powf(10.f, 4.f/10.f);
+      const FLOAT min_power = FLT_EPSILON;
+
+      for (i = 0; i < nb_users; i++)
+      {
+        t_node *node = nodesList.nodes[i];
+        INT16U numTones = node->measures.BitLoad.numBitLoads;
+        FLOAT *BitLoad = node->measures.BitLoad.BitLoad;
+        INT16U j;
+
+        for (j = 0; j < numTones; j++)
+        {
+          INT16U user = i;
+          INT16U tone = j;
+
+          BitLoad[j] = bitLoadingForUserAndTone(nodesList.nodes, user, tone, nb_users, 0.f);
+        }
+      }
+
+      for (i = 0; i < nb_users; i++)
+      {
+        const FLOAT ro = 0.00001f;
+        const INT16U user = i;
+        t_node *node = nodesList.nodes[user];
+        INT16U numTones = node->measures.Power.numPowers;
+        INT8U used[VB_LAST_CARRIER_IDX+1] = { 0 };
+        FLOAT *Powers = node->measures.Power.Power;
+        FLOAT tPower;
+
+        if (Powers == NULL)
+        {
+          continue;
+        }
+
+        do {
+          FLOAT maxPower = -FLT_MAX, minPower =  FLT_MAX;
+          FLOAT ttPower, B, Asum = 0.f, Adiff, Bi, Bj, Ai, Aj;
+          INT16U j, maxPowerIdx = numTones, minPowerIdx = numTones;
+          for (j = 0; j < numTones; j++)
+          {
+            const INT16U tone = j;
+            FLOAT tone_power;
+
+            if (used[tone])
+            {
+              continue;
+            }
+
+            tone_power = iterationFunction(nodesList.nodes, user, tone, nb_users);
+            if (tone_power > maxPower && Powers[tone] < max_power)
+            {
+              maxPowerIdx = tone;
+              maxPower = tone_power;
+            }
+
+            if (tone_power < minPower && Powers[tone] > min_power)
+            {
+              minPowerIdx = tone;
+              minPower = tone_power;
+            }
+          }
+
+          if (maxPowerIdx >= numTones || minPowerIdx >= numTones ||
+              maxPowerIdx == minPowerIdx)
+          {
+            break;
+          }
+
+          Aj = aFactorForUserAndTone(nodesList.nodes, user, minPowerIdx, nb_users);
+          Ai = aFactorForUserAndTone(nodesList.nodes, user, maxPowerIdx, nb_users);
+          Bj = bFactorForUserAndTone(nodesList.nodes, user, minPowerIdx, nb_users);
+          Bi = bFactorForUserAndTone(nodesList.nodes, user, maxPowerIdx, nb_users);
+
+          Adiff = Aj-Ai;
+          B = logf(2.f)*(Bj-Bi);
+
+          ttPower = Adiff/2.f;
+          if (fabsf(B) > 0.f)
+          {
+            Asum = Ai+Aj;
+            ttPower += 1.f/B - sqrtf((Asum*Asum*B*B)+4.f)/(2.f*B);
+          }
+          tPower = fminf(Powers[minPowerIdx], max_power-Powers[maxPowerIdx]);
+          tPower = fminf(tPower, ttPower);
+          //printf("%g %g %g %g (%d/%d) : (%g/%g) ->\n", tPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
+          if (tPower > 0.f)
+          {
+            Powers[minPowerIdx] -= tPower;
+            Powers[maxPowerIdx] += tPower;
+          }
+
+          used[minPowerIdx] = used[maxPowerIdx] = 1;
+
+          //printf("%g %g %g %g (%d/%d) : (%g/%g)\n", tPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
+          if (Powers[maxPowerIdx] < 0.f)
+            abort();
+
+          if (Powers[minPowerIdx] < 0.f)
+            abort();
+
+          if (tPower < ro)
+          {
+            break;
+          }
+        } while (1);
+      }
+    }
+  }
+
+  free(nodesList.nodes);
+
+  pthread_mutex_unlock(&vbNodesPSDMutex);
+
+  return ret;
+}
 
 /*******************************************************************/
 
@@ -2611,6 +3097,7 @@ t_VB_engineErrorCode VbEngineDatamodelClusterXDomainByMacGet(INT32U clusterId, I
 void VbEngineDatamodelStart(void)
 {
   pthread_mutex_init(&(vbEngineTimersMutex), NULL);
+  pthread_mutex_init(&(vbNodesPSDMutex), NULL);
 }
 
 /*******************************************************************/
@@ -2618,6 +3105,7 @@ void VbEngineDatamodelStart(void)
 void VbEngineDatamodelStop(void)
 {
   pthread_mutex_destroy(&(vbEngineTimersMutex));
+  pthread_mutex_destroy(&(vbNodesPSDMutex));
 }
 
 /*******************************************************************/

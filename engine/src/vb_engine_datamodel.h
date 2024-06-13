@@ -278,6 +278,7 @@ typedef enum
   VB_ENGINE_BOOST_MODE_AUTO = 0,
   VB_ENGINE_BOOST_MODE_FORCED_FULL,
   VB_ENGINE_BOOST_MODE_FORCED_LOW,
+  VB_ENGINE_BOOST_MODE_FORCED_ITERATIVE,
   VB_ENGINE_BOOST_MODE_LAST
 } t_vbEngineBoostMode;
 
@@ -511,6 +512,7 @@ typedef struct s_boostInfo
 typedef struct s_nodeChannelSettings
 {
   t_psdShape           psdShape;
+  t_psdShape           prevPsdShape;
   t_boostInfo          boostInfo;
   INT16U               firstValidCarrier;
   INT8U                interferenceDetectionCounter;
@@ -550,6 +552,12 @@ typedef struct s_DomainsList
   INT16U numDomains;
   t_domain *domainsArray;
 } t_domainsList;
+
+typedef struct s_nodesList
+{
+  t_node **nodes;
+  INT32U numNodes;
+} t_nodesList;
 
 typedef struct s_DriverTime
 {
@@ -1044,6 +1052,13 @@ void VbEngineDatamodelStart(void);
  * @brief Stops VB Engine datamodel
  **/
 void VbEngineDatamodelStop(void);
+
+/**
+ * @brief Iteratively build PSDShapes for single cluster
+ * @param[in] clusterId Cluster Id
+ * @return @ref t_VB_engineErrorCode
+ **/
+t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId);
 
 #endif /* VB_ENGINE_DATAMODEL_H_ */
 

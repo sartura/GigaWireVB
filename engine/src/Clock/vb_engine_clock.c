@@ -82,7 +82,7 @@
 #define CLOCK_FUTURE_FIXED_GUARD         (500)   // In msec
 #define CLOCK_WAIT_RSP                   (2000)  // In msec
 #define CLOCK_UPDATE_INTERVAL            (60000) // In msec
-#define CLOCK_MAX_DEV_SPAN               (20)    // In msec
+#define CLOCK_MAX_DEV_SPAN               (100)   // In msec
 
 /*
  ************************************************************************

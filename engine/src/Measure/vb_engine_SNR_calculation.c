@@ -355,6 +355,15 @@ static INT8U SnrFloatToInt8U(float snrVal)
 
 /*******************************************************************/
 
+float BGNMeasure2linear(const t_processMeasure *bgnMeasure, INT16U carrier)
+{
+  float x = (((float)(bgnMeasure->measuresRx1[carrier]))/4) - bgnMeasure->rxg1Compensation;
+  INT16U idx = INDEX_LINEARIZE_TABLE(x);
+  return LINEZLIZE_025GRID[idx];
+}
+
+/*******************************************************************/
+
 static t_VB_engineErrorCode VbSnrSISOIndCalculate(t_VBDriver *driver, t_node *node,
                                                   INT8U *snrCalculated, const t_crossMeasureList *cfrMeasureList,
                                                   const t_processMeasure *bgnMeasure, INT32U lastXtalkCarrierIdx)

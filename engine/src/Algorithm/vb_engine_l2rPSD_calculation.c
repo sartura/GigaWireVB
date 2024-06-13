@@ -52,6 +52,8 @@
 
 #include "types.h"
 
+#include <math.h>
+#include <string.h>
 #include <stdlib.h>
 
 #include "vb_engine_drivers_list.h"
@@ -113,7 +115,105 @@
  ************************************************************************
  */
 
- /*******************************************************************/
+/*******************************************************************/
+
+static int clip(int x, int min, int max)
+{
+  if (x < min)
+    return min;
+  if (x > max)
+    return max;
+  return x;
+}
+
+static INT16U linear2dB(float x)
+{
+  if (x <= 0.f)
+  {
+    return VB_ENGINE_PSD_NO_POWER;
+  }
+
+  return clip(-lrintf(2.f * 10.f * log10f(x)), VB_ENGINE_PSD_FULL_POWER, VB_ENGINE_PSD_NO_POWER);
+}
+
+static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSettings *nodeChannelSettings, t_node *node, t_psdBandAllocation *psdBandAllocation)
+{
+  t_VB_engineErrorCode result = VB_ENGINE_ERROR_NONE;
+  t_psdShape *psd, *prev_psd;
+
+  if (nodeChannelSettings != NULL)
+  {
+    INT16U nBands = 0, prevPower = 0, i = VB_LAST_CARRIER_IDX;
+
+    psd = &(nodeChannelSettings->psdShape);
+    prev_psd = &(nodeChannelSettings->prevPsdShape);
+    if (psd->sendUpdate == TRUE)
+    {
+      return result;
+    }
+
+    if (node->measures.Power.numPowers > 0)
+    {
+      prevPower = linear2dB(node->measures.Power.Power[0]);
+      for (i = 1; i < node->measures.Power.numPowers; i++)
+      {
+        INT16U Power = linear2dB(node->measures.Power.Power[i]);
+
+        if (Power != prevPower)
+        {
+          psd->psdBandLevel[nBands].attLevel = prevPower;
+          psd->psdBandLevel[nBands].stopCarrier = i;
+          prevPower = Power;
+          nBands++;
+        }
+      }
+
+      if (nBands > 0 && psd->psdBandLevel[nBands-1].attLevel == VB_ENGINE_PSD_NO_POWER && psd->psdBandLevel[nBands-1].stopCarrier < VB_LAST_CARRIER_IDX)
+      {
+        psd->psdBandLevel[nBands-1].stopCarrier = VB_LAST_CARRIER_IDX;
+      }
+      else if (nBands > 0 && i < VB_LAST_CARRIER_IDX)
+      {
+        psd->psdBandLevel[nBands].attLevel = prevPower;
+        psd->psdBandLevel[nBands].stopCarrier = VB_LAST_CARRIER_IDX;
+        nBands++;
+      } else {
+        psd->psdBandLevel[nBands].attLevel = prevPower;
+        psd->psdBandLevel[nBands].stopCarrier = VB_LAST_CARRIER_IDX;
+        nBands++;
+      }
+
+      nodeChannelSettings->boostInfo.level = nBands;
+      nodeChannelSettings->boostInfo.perc = (100 * (i+1)) / node->measures.Power.numPowers;
+      psd->numPSDBands = nBands;
+      if ((psd->numPSDBands != prev_psd->numPSDBands) ||
+          (memcmp(psd->psdBandLevel, prev_psd->psdBandLevel, sizeof(psd->psdBandLevel))))
+      {
+        psd->sendUpdate = TRUE;
+        memcpy(prev_psd, psd, sizeof(*psd));
+        for (int i = 0; i < nBands; i++)
+        {
+          //printf("[%d] = %d - %d\n", i, psd->psdBandLevel[i].attLevel,  psd->psdBandLevel[i].stopCarrier);
+        }
+      }
+    } else if (psd->numPSDBands != 1) {
+      psd->sendUpdate = TRUE;
+      psd->psdBandLevel[0].attLevel = 0;
+      psd->psdBandLevel[0].stopCarrier = VB_ENGINE_LAST_CARRIER_IDX;
+      nodeChannelSettings->boostInfo.level = 1;
+      nodeChannelSettings->boostInfo.perc = 100;
+      psd->numPSDBands = 1;
+    }
+  }
+  else
+  {
+    result = VB_ENGINE_ERROR_DATA_MODEL;
+  }
+
+  return result;
+}
+
+/*******************************************************************/
 
  static  t_VB_engineErrorCode VbChannelCapacityPSDNBandsSet(t_nodeChannelSettings *nodeChannelSettings, INT8U nBands, t_psdBandAllocation *psdBandAllocation)
  {
@@ -288,9 +388,12 @@ t_VB_engineErrorCode VbEngineLeftToRightPSDShapeRun(t_VBDriver *driver, t_domain
       if (node->channelSettings.boostInfo.mode == VB_ENGINE_BOOST_MODE_AUTO)
       {
         VbLogPrintExt(VB_LOG_DEBUG, driver->vbDriverID, "Node %s, num Bands %u", node->MACStr, node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos]);
-        ret = VbChannelCapacityPSDNBandsSet( &(node->channelSettings),
-                                             node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos],
-                                             psd_l2r_args->psdBandsAllocation );
+        ret = VbChannelCapacityCustomPSDNBandsSet( &(node->channelSettings), node,
+                                                  psd_l2r_args->psdBandsAllocation );
+
+//        ret = VbChannelCapacityPSDNBandsSet( &(node->channelSettings),
+//                                             node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos],
+//                                             psd_l2r_args->psdBandsAllocation );
 
 #if VB_ENGINE_METRICS_ENABLED
         nBands = node->cdtaInfo.bandSet.numActiveBands[psd_l2r_args->qos];
@@ -344,6 +447,20 @@ t_VB_engineErrorCode VbEngineLeftToRightPSDShapeRun(t_VBDriver *driver, t_domain
         if (ret == VB_ENGINE_ERROR_NONE)
         {
           VbLogPrintExt(VB_LOG_DEBUG, driver->vbDriverID, "Node %s set to LOW band (mode %u; sendUpdate %u; reportsReceived %u)",
+              node->MACStr,
+              node->channelSettings.boostInfo.mode,
+              node->channelSettings.psdShape.sendUpdate,
+              node->trafficReports.reportsReceived);
+        }
+      }
+      else if (node->channelSettings.boostInfo.mode == VB_ENGINE_BOOST_MODE_FORCED_ITERATIVE)
+      {
+        ret = VbChannelCapacityCustomPSDNBandsSet( &(node->channelSettings), node,
+                                                  psd_l2r_args->psdBandsAllocation );
+
+        if (ret == VB_ENGINE_ERROR_NONE)
+        {
+          VbLogPrintExt(VB_LOG_DEBUG, driver->vbDriverID, "Node %s set to CUSTOM band (mode %u; sendUpdate %u; reportsReceived %u)",
               node->MACStr,
               node->channelSettings.boostInfo.mode,
               node->channelSettings.psdShape.sendUpdate,

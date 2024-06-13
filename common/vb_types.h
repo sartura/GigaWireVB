@@ -64,7 +64,7 @@
 #define MAC_CYCLE_DURATION          (40)  //ms
 #define VB_FW_VERSION_LENGTH        (10)
 #define VB_PARSE_MAX_PATH_LEN       (100)
-#define VB_PSD_NUM_BANDS            (10)
+#define VB_PSD_NUM_BANDS            (4096)
 #define VB_QUEUE_NAME_LEN           (50)
 #define VB_ENGINE_ID_MAX_SIZE       (21) // 20 digits + null byte
 #define VB_ALIGN_GHN_MAX_RELAYS     (4)
@@ -157,6 +157,18 @@ typedef struct s_PSD
   t_MSBsList      MSBsList;
 } t_PSD;
 
+typedef struct s_lastBitLoad
+{
+  INT16U numBitLoads;
+  FLOAT *BitLoad;
+} t_lastBitLoad;
+
+typedef struct s_lastPower
+{
+  INT16U numPowers;
+  FLOAT *Power;
+} t_lastPower;
+
 typedef struct s_processMeasure
 {
   INT8U         planID;
@@ -198,6 +210,9 @@ typedef struct s_nodeMasures
   t_processMeasure    SNRProbesMeasure;
   t_processMeasure    snrLowXtalk;
   t_PSD               Psd;
+  t_lastPower         Power;
+  t_lastBitLoad       BitLoad;
+  t_lastBitLoad       prevBitLoad;
 } t_nodeMeasures;
 
 typedef struct s_additionalInfo1

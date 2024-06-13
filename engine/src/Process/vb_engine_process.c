@@ -1996,6 +1996,7 @@ static t_VB_engineErrorCode BoostAlgorithmRun(INT32U clusterId)
     psd_l2r_args.qos = next_qos_rate;
     psd_l2r_args.psdBandsAllocation = VbEngineConfPSDBandAllocationGet();
 
+    ret = VbEngineLinePSDShape(clusterId);
     // Build PSD shapes as requested by CDTA algorithm
     ret = VbEngineDatamodelClusterXAllNodesLoop(VbEngineLeftToRightPSDShapeRun, clusterId, (void*)&psd_l2r_args);
   }

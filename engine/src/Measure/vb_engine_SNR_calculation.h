@@ -103,6 +103,9 @@ t_VB_engineErrorCode VbCalculateAllSNRAndCapacityStop(void);
  **/
 t_VB_engineErrorCode VbEngineSNRProbeForceRequest(t_VBDriver *driver, INT8U *mac);
 
+/**
+ **/
+float BGNMeasure2linear(const t_processMeasure *bgnMeasure, INT16U carrier);
 
 /*******************************************************************/
 #endif /* VB_SNR_CALCULATION_H_ */
