@@ -211,6 +211,7 @@ typedef struct s_nodeMasures
   t_processMeasure    snrLowXtalk;
   t_PSD               Psd;
   t_lastPower         Power;
+  t_lastPower         nextPower;
   t_lastBitLoad       BitLoad;
   t_lastBitLoad       prevBitLoad;
 } t_nodeMeasures;

@@ -128,12 +128,15 @@ static int clip(int x, int min, int max)
 
 static INT16U linear2dB(float x)
 {
+  if (x < 0.f)
+    abort();
+
   if (x <= 0.f)
   {
     return VB_ENGINE_PSD_NO_POWER;
   }
 
-  return clip(-lrintf(2.f * 10.f * log10f(x)), VB_ENGINE_PSD_FULL_POWER, VB_ENGINE_PSD_NO_POWER);
+  return clip(-lrintf(1.f * 10.f * log10f(x)), VB_ENGINE_PSD_FULL_POWER, VB_ENGINE_PSD_NO_POWER);
 }
 
 static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSettings *nodeChannelSettings, t_node *node, t_psdBandAllocation *psdBandAllocation)
@@ -152,18 +155,18 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
       return result;
     }
 
-    if (node->measures.Power.numPowers > 0)
+    if (node->measures.nextPower.numPowers > 0)
     {
-      prevPower = linear2dB(node->measures.Power.Power[0]);
-      for (i = 1; i < node->measures.Power.numPowers; i++)
+      prevPower = linear2dB(node->measures.nextPower.Power[0]);
+      for (i = 1; i < node->measures.nextPower.numPowers; i++)
       {
-        INT16U Power = linear2dB(node->measures.Power.Power[i]);
+        INT16U nextPower = linear2dB(node->measures.nextPower.Power[i]);
 
-        if (Power != prevPower)
+        if (nextPower != prevPower)
         {
           psd->psdBandLevel[nBands].attLevel = prevPower;
           psd->psdBandLevel[nBands].stopCarrier = i;
-          prevPower = Power;
+          prevPower = nextPower;
           nBands++;
         }
       }
@@ -184,7 +187,7 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
       }
 
       nodeChannelSettings->boostInfo.level = nBands;
-      nodeChannelSettings->boostInfo.perc = (100 * (i+1)) / node->measures.Power.numPowers;
+      nodeChannelSettings->boostInfo.perc = (100 * (i+1)) / node->measures.nextPower.numPowers;
       psd->numPSDBands = nBands;
       if ((psd->numPSDBands != prev_psd->numPSDBands) ||
           (memcmp(psd->psdBandLevel, prev_psd->psdBandLevel, sizeof(psd->psdBandLevel))))
@@ -193,7 +196,7 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
         memcpy(prev_psd, psd, sizeof(*psd));
         for (int i = 0; i < nBands; i++)
         {
-          //printf("[%d] = %d - %d\n", i, psd->psdBandLevel[i].attLevel,  psd->psdBandLevel[i].stopCarrier);
+          printf("[%d] = %d - %d\n", i, psd->psdBandLevel[i].attLevel,  psd->psdBandLevel[i].stopCarrier);
         }
       }
     } else if (psd->numPSDBands != 1) {

@@ -556,6 +556,7 @@ typedef struct s_DomainsList
 typedef struct s_nodesList
 {
   t_node **nodes;
+  t_nodeType type;
   INT32U numNodes;
 } t_nodesList;
 
@@ -1056,9 +1057,10 @@ void VbEngineDatamodelStop(void);
 /**
  * @brief Iteratively build PSDShapes for single cluster
  * @param[in] clusterId Cluster Id
+ * @param[in] type Node type
  * @return @ref t_VB_engineErrorCode
  **/
-t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId);
+t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId, t_nodeType type);
 
 #endif /* VB_ENGINE_DATAMODEL_H_ */
 

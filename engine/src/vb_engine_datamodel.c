@@ -244,6 +244,7 @@ static void VbDatamodelNodeMeasuresDestroy( t_nodeMeasures *nodeMeasures )
   VbDatamodelNodeProcessMeasureDestroy(&nodeMeasures->snrLowXtalk);
   VbDatamodelNodePsdDestroy(&nodeMeasures->Psd);
   VbDatamodelNodePowerDestroy(&nodeMeasures->Power);
+  VbDatamodelNodePowerDestroy(&nodeMeasures->nextPower);
   VbDatamodelNodeBitLoadDestroy(&nodeMeasures->BitLoad);
   VbDatamodelNodeBitLoadDestroy(&nodeMeasures->prevBitLoad);
 }
@@ -493,7 +494,7 @@ static t_VB_engineErrorCode NodeListInsert(t_node *node, t_nodesList *nodesList)
 
   if (ret == VB_ENGINE_ERROR_NONE)
   {
-    if (node->type == VB_NODE_DOMAIN_MASTER)
+    if (node->type == VB_NODE_DOMAIN_MASTER || node->type == VB_NODE_END_POINT)
     {
       if (nodesList->nodes == NULL)
       {
@@ -599,7 +600,10 @@ static t_VB_engineErrorCode CompleteLinesNodesListCb(t_VBDriver *driver, t_domai
     if (VbEngineDatamodelDomainIsComplete(domain) == TRUE)
     {
       // Insert Node in list
-      ret = NodeListInsert(node, nodes_list);
+      if (nodes_list->type == node->type)
+      {
+        ret = NodeListInsert(node, nodes_list);
+      }
     }
   }
 
@@ -1979,7 +1983,7 @@ t_VB_engineErrorCode VbEngineDatamodelAllNodesMacGet(t_nodesMacList *macList, BO
 
 /*******************************************************************/
 
-t_VB_engineErrorCode VbEngineDatamodelClusterXAllCompleteLinesGet(t_nodesList *nodesList, INT32U clusterId)
+t_VB_engineErrorCode VbEngineDatamodelClusterXAllCompleteLinesGet(t_nodesList *nodesList, INT32U clusterId, BOOL isEp)
 {
   t_VB_engineErrorCode ret = VB_ENGINE_ERROR_NONE;
   t_vbEngineNumNodes   num_nodes;
@@ -1995,6 +1999,7 @@ t_VB_engineErrorCode VbEngineDatamodelClusterXAllCompleteLinesGet(t_nodesList *n
   {
     // Init field
     nodesList->numNodes = 0;
+    nodesList->type = isEp ? VB_NODE_END_POINT : VB_NODE_DOMAIN_MASTER;
   }
 
   if (ret == VB_ENGINE_ERROR_NONE)
@@ -2005,10 +2010,11 @@ t_VB_engineErrorCode VbEngineDatamodelClusterXAllCompleteLinesGet(t_nodesList *n
 
   if (ret == VB_ENGINE_ERROR_NONE)
   {
+    INT16U nb_nodes = isEp ? num_nodes.numEps : num_nodes.numDms;
     // Allocate memory for List of Nodes
-    if (num_nodes.numCompleteLines > 0)
+    if (nb_nodes > 0)
     {
-      nodes = (t_node**)calloc(num_nodes.numCompleteLines, sizeof(*nodes));
+      nodes = (t_node**)calloc(nb_nodes, sizeof(*nodes));
       if (nodes == NULL)
       {
         ret = VB_ENGINE_ERROR_MALLOC;
@@ -2715,8 +2721,9 @@ static FLOAT bitLoadingForUserAndTone(t_node **nodes, INT16U user, INT16U tone, 
   FLOAT num, den = 0.f;
   INT16U i;
 
-  if (tone >= user_node->measures.Power.numPowers)
+  if (tone >= user_node->measures.Power.numPowers || tone >= user_node->measures.BGNMeasure.numMeasures)
   {
+    VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range");
     return 0.f;
   }
 
@@ -2735,18 +2742,16 @@ static FLOAT bitLoadingForUserAndTone(t_node **nodes, INT16U user, INT16U tone, 
 
     if (tone >= node->measures.Power.numPowers)
     {
-      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
+      VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
       continue;
     }
 
     den += node->measures.Power.Power[tone];
   }
-  if (tone < user_node->measures.BGNMeasure.numMeasures)
-  {
-    den += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
-  }
 
-  den *= powf(10.f, 12.6f/10.f);
+  den += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
+
+  den *= powf(10.f, -12.6f/10.f);
 
   return log2f(1.f+num/den);
 }
@@ -2758,8 +2763,9 @@ static FLOAT aFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT
   FLOAT sum = 0.f;
   INT16U i;
 
-  if (tone >= user_node->measures.Power.numPowers)
+  if (tone >= user_node->measures.Power.numPowers || tone >= user_node->measures.BGNMeasure.numMeasures)
   {
+    VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range");
     return 0.f;
   }
 
@@ -2776,19 +2782,16 @@ static FLOAT aFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT
 
     if (tone >= node->measures.Power.numPowers)
     {
-      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
+      VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
       continue;
     }
 
     sum += node->measures.Power.Power[tone];
   }
 
-  if (tone < user_node->measures.BGNMeasure.numMeasures)
-  {
-    sum += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
-  }
+  sum += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
 
-  sum *= powf(10.f, 12.6f/10.f);
+  sum *= powf(10.f, -12.6f/10.f);
 
   sum += userPowers[tone];
 
@@ -2797,8 +2800,18 @@ static FLOAT aFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT
 
 static FLOAT bFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users)
 {
-  FLOAT sum = 0.f;
+  t_node *user_node = nodes[user];
+  FLOAT *userPowers = user_node->measures.Power.Power;
+  FLOAT num, den = 0.f;
   INT16U i;
+
+  if (tone >= user_node->measures.Power.numPowers || tone >= user_node->measures.BGNMeasure.numMeasures)
+  {
+    VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range");
+    return 0.f;
+  }
+
+  num = userPowers[tone];
 
   for (i = 0; i < nb_users; i++)
   {
@@ -2811,18 +2824,20 @@ static FLOAT bFactorForUserAndTone(t_node **nodes, INT16U user, INT16U tone, INT
 
     node = nodes[i];
 
-    if (tone >= node->measures.BitLoad.numBitLoads ||
-        tone >= node->measures.prevBitLoad.numBitLoads)
+    if (tone >= node->measures.Power.numPowers)
     {
-      VbLogPrintExt(VB_LOG_DEBUG, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d/%d", tone,
-                    node->measures.BitLoad.numBitLoads, node->measures.prevBitLoad.numBitLoads);
+      VbLogPrintExt(VB_LOG_ERROR, VB_ENGINE_ALL_DRIVERS_STR, "Tone %d out of range %d", tone, node->measures.Power.numPowers);
       continue;
     }
 
-    sum += node->measures.BitLoad.BitLoad[tone] - node->measures.prevBitLoad.BitLoad[tone];
+    den += node->measures.Power.Power[tone];
   }
 
-  return sum;
+  den += BGNMeasure2linear(&user_node->measures.BGNMeasure, tone);
+
+  den *= powf(10.f, -12.6f/10.f);
+
+  return 1.f / (logf(2.f) * (den + num));
 }
 
 static FLOAT iterationFunction(t_node **nodes, INT16U user, INT16U tone, INT16U nb_users)
@@ -2837,7 +2852,7 @@ static FLOAT iterationFunction(t_node **nodes, INT16U user, INT16U tone, INT16U 
 
 /*******************************************************************/
 
-t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
+t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId, t_nodeType type)
 {
   t_VB_engineErrorCode   ret = VB_ENGINE_ERROR_NONE;
   t_nodesList nodesList = {0};
@@ -2846,7 +2861,7 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
 
   if (ret == VB_ENGINE_ERROR_NONE)
   {
-    ret = VbEngineDatamodelClusterXAllCompleteLinesGet(&nodesList, clusterId);
+    ret = VbEngineDatamodelClusterXAllCompleteLinesGet(&nodesList, clusterId, type);
   }
 
   if (ret == VB_ENGINE_ERROR_NONE && nodesList.numNodes > 1)
@@ -2878,11 +2893,26 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
         }
 
         node->measures.Power.numPowers = numTones;
-        init_value = powf(10.f, 4.f/10.f)/numTones;
+        init_value = 1.f/numTones;
         for (j = 0; j < numTones; j++)
         {
           Power[j] = init_value;
         }
+      }
+
+      if (node->measures.nextPower.numPowers < numTones)
+      {
+        FLOAT *nextPower;
+
+        free(node->measures.nextPower.Power);
+        node->measures.nextPower.Power = nextPower = (FLOAT *)calloc(numTones, sizeof(FLOAT));
+        if (node->measures.nextPower.Power == NULL)
+        {
+          ret = VB_ENGINE_ERROR_MALLOC;
+          break;
+        }
+
+        node->measures.nextPower.numPowers = numTones;
       }
 
       if (node->measures.prevBitLoad.numBitLoads < numTones)
@@ -2928,8 +2958,8 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
 
     if (ret == VB_ENGINE_ERROR_NONE)
     {
-      const FLOAT max_power = powf(10.f, 4.f/10.f);
-      const FLOAT min_power = FLT_EPSILON;
+      const FLOAT max_power = 1.f-1e-20f;
+      const FLOAT min_power = 1e-20f;
 
       for (i = 0; i < nb_users; i++)
       {
@@ -2949,18 +2979,22 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
 
       for (i = 0; i < nb_users; i++)
       {
-        const FLOAT ro = 0.00001f;
+        const FLOAT ro = 0.000001f;
         const INT16U user = i;
         t_node *node = nodesList.nodes[user];
         INT16U numTones = node->measures.Power.numPowers;
         INT8U used[VB_LAST_CARRIER_IDX+1] = { 0 };
+        FLOAT *nextPowers = node->measures.nextPower.Power;
         FLOAT *Powers = node->measures.Power.Power;
         FLOAT tPower;
 
-        if (Powers == NULL)
+        if (Powers == NULL || nextPowers == NULL)
         {
           continue;
         }
+
+        memcpy(nextPowers, node->measures.Power.Power, sizeof(*nextPowers) * node->measures.Power.numPowers);
+        node->measures.nextPower.numPowers = node->measures.Power.numPowers;
 
         do {
           FLOAT maxPower = -FLT_MAX, minPower =  FLT_MAX;
@@ -3010,25 +3044,19 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId)
             Asum = Ai+Aj;
             ttPower += 1.f/B - sqrtf((Asum*Asum*B*B)+4.f)/(2.f*B);
           }
-          tPower = fminf(Powers[minPowerIdx], max_power-Powers[maxPowerIdx]);
+          tPower = fminf(Powers[minPowerIdx], 1.f-Powers[maxPowerIdx]);
           tPower = fminf(tPower, ttPower);
-          //printf("%g %g %g %g (%d/%d) : (%g/%g) ->\n", tPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
-          if (tPower > 0.f)
-          {
-            Powers[minPowerIdx] -= tPower;
-            Powers[maxPowerIdx] += tPower;
-          }
+          //printf("%g %g %g %g %g (%d/%d) : (%g/%g) ->\n", tPower, ttPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
+          if (tPower < 0.f)
+            abort();
+
+          nextPowers[minPowerIdx] -= tPower;
+          nextPowers[maxPowerIdx] += tPower;
 
           used[minPowerIdx] = used[maxPowerIdx] = 1;
 
-          //printf("%g %g %g %g (%d/%d) : (%g/%g)\n", tPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
-          if (Powers[maxPowerIdx] < 0.f)
-            abort();
-
-          if (Powers[minPowerIdx] < 0.f)
-            abort();
-
-          if (tPower < ro)
+          //printf("%g %g %g %g %g (%d/%d) : (%g/%g)\n", tPower, ttPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, nextPowers[maxPowerIdx], nextPowers[minPowerIdx]);
+          if (maxPower - minPower < ro)
           {
             break;
           }
