@@ -136,7 +136,7 @@ static INT16U linear2dB(float x)
     return VB_ENGINE_PSD_NO_POWER;
   }
 
-  return clip(-lrintf(1.f * 10.f * log10f(x)), VB_ENGINE_PSD_FULL_POWER, VB_ENGINE_PSD_NO_POWER);
+  return clip(-floorf(1.f * 10.f * log10f(x)), VB_ENGINE_PSD_FULL_POWER, VB_ENGINE_PSD_NO_POWER);
 }
 
 static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSettings *nodeChannelSettings, t_node *node, t_psdBandAllocation *psdBandAllocation)
@@ -157,6 +157,7 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
 
     if (node->measures.nextPower.numPowers > 0)
     {
+      INT16U firstCarrier = node->measures.BGNMeasure.firstCarrier;
       prevPower = linear2dB(node->measures.nextPower.Power[0]);
       for (i = 1; i < node->measures.nextPower.numPowers; i++)
       {
@@ -165,7 +166,7 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
         if (nextPower != prevPower)
         {
           psd->psdBandLevel[nBands].attLevel = prevPower;
-          psd->psdBandLevel[nBands].stopCarrier = i;
+          psd->psdBandLevel[nBands].stopCarrier = i + firstCarrier;
           prevPower = nextPower;
           nBands++;
         }
