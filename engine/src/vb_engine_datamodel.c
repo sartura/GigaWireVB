@@ -3044,11 +3044,33 @@ t_VB_engineErrorCode VbEngineLinePSDShape(INT32U clusterId, t_nodeType type)
             Asum = Ai+Aj;
             ttPower += 1.f/B - sqrtf((Asum*Asum*B*B)+4.f)/(2.f*B);
           }
-          tPower = fminf(Powers[minPowerIdx], 1.f-Powers[maxPowerIdx]);
+          tPower = fminf(Powers[minPowerIdx], max_power-Powers[maxPowerIdx]);
           tPower = fminf(tPower, ttPower);
           //printf("%g %g %g %g %g (%d/%d) : (%g/%g) ->\n", tPower, ttPower, Aj, Ai, B, maxPowerIdx, minPowerIdx, Powers[maxPowerIdx], Powers[minPowerIdx]);
           if (tPower < 0.f)
-            abort();
+          {
+            break;
+          }
+
+          if (nextPowers[minPowerIdx] - tPower > min_power)
+          {
+            nextPowers[minPowerIdx] -= tPower;
+          }
+          else
+          {
+            printf("min [%d] %f | %f\n", minPowerIdx, tPower, ttPower);
+            break;
+          }
+
+          if (nextPowers[maxPowerIdx] + tPower < max_power)
+          {
+            nextPowers[maxPowerIdx] += tPower;
+          }
+          else
+          {
+            printf("max [%d]  %f | %f\n", maxPowerIdx, tPower, ttPower);
+            break;
+          }
 
           nextPowers[minPowerIdx] -= tPower;
           nextPowers[maxPowerIdx] += tPower;
