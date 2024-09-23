@@ -172,11 +172,11 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
         }
       }
 
-      if (nBands > 0 && psd->psdBandLevel[nBands-1].attLevel == VB_ENGINE_PSD_NO_POWER && psd->psdBandLevel[nBands-1].stopCarrier < VB_LAST_CARRIER_IDX)
+      if ((nBands > 1) && (psd->psdBandLevel[nBands-1].attLevel == VB_ENGINE_PSD_NO_POWER) && (psd->psdBandLevel[nBands-1].stopCarrier < VB_LAST_CARRIER_IDX))
       {
         psd->psdBandLevel[nBands-1].stopCarrier = VB_LAST_CARRIER_IDX;
       }
-      else if (nBands > 0 && i < VB_LAST_CARRIER_IDX)
+      else if ((nBands > 0) && (i < VB_LAST_CARRIER_IDX))
       {
         psd->psdBandLevel[nBands].attLevel = prevPower;
         psd->psdBandLevel[nBands].stopCarrier = VB_LAST_CARRIER_IDX;
@@ -190,8 +190,8 @@ static t_VB_engineErrorCode VbChannelCapacityCustomPSDNBandsSet(t_nodeChannelSet
       nodeChannelSettings->boostInfo.level = nBands;
       nodeChannelSettings->boostInfo.perc = (100 * (i+1)) / node->measures.nextPower.numPowers;
       psd->numPSDBands = nBands;
-      if ((psd->numPSDBands != prev_psd->numPSDBands) ||
-          (memcmp(psd->psdBandLevel, prev_psd->psdBandLevel, sizeof(psd->psdBandLevel))))
+      if ((psd->numPSDBands > 0) && ((psd->numPSDBands != prev_psd->numPSDBands) ||
+          (memcmp(psd->psdBandLevel, prev_psd->psdBandLevel, sizeof(psd->psdBandLevel)))))
       {
         psd->sendUpdate = TRUE;
         memcpy(prev_psd, psd, sizeof(*psd));
